@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-<<<<<<< HEAD
 import CollaborationDashboard from './collaboration/CollaborationDashboard';
 import AddPatientModal from './AddPatientModal';
 import EmailReportModal from './EmailReportModal';
-=======
 import FileUpload from './FileUpload';
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
 import {
   Users,
   Calendar as CalendarIcon,
@@ -40,10 +37,8 @@ import {
   TrendingUp,
   Layers,
   Sparkles,
-<<<<<<< HEAD
   Mail,
-  UserPlus
-=======
+  UserPlus,
   Zap,
   HeartPulse,
   CalendarCheck,
@@ -52,8 +47,8 @@ import {
   Check,
   Database,
   UploadCloud
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
 } from 'lucide-react';
+
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1068,15 +1063,15 @@ function RegisterPatientScreen({ onSavePatient, onCancel }) {
 
 export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false }) {
   const navigate = useNavigate();
-<<<<<<< HEAD
   const { getAuthHeaders } = useAuth();
   const [patients, setPatients] = useState(FALLBACK_PATIENTS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('patients'); // 'patients' | 'calendar' | 'patient-detail' | 'collaboration'
+  const [activeTab, setActiveTab] = useState('patients'); // 'patients' | 'calendar' | 'patient-detail' | 'collaboration' | 'analysis' | 'register-patient'
   const [searchQuery, setSearchQuery] = useState('');
   const [filterState, setFilterState] = useState('ALL'); // 'ALL' | 'Stressed' | 'Focused' | 'Neutral'
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedAnalysisUploadId, setSelectedAnalysisUploadId] = useState(null);
   const [addPatientModalOpen, setAddPatientModalOpen] = useState(false);
   const [emailReportModalOpen, setEmailReportModalOpen] = useState(false);
   const [reportModalData, setReportModalData] = useState({ uploadId: 'demo_session_focus', filename: 'EEG_Session.edf', recipientName: '', recipientEmail: '' });
@@ -1127,11 +1122,13 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
             ],
             graphData: patient.graph_data || [
               { time: '10:00', snnSpikes: isEleanor ? 60 : 20, heartRate: 72 },
-              { time: '10:15', snnSpikes: isEleanor ? 84 : 30, heartRate: 76 }
+              { time: '10:15', snnSpikes: isEleanor ? 84 : 30, heartRate: 76 },
+              { time: '10:30', snnSpikes: isEleanor ? 45 : 18, heartRate: 70 },
+              { time: '10:45', snnSpikes: isEleanor ? 30 : 25, heartRate: 68 }
             ],
-            waveSpectrum: patient.wave_spectrum || [
-              { wave: 'Delta', power: 12 },
-              { wave: 'Theta', power: 18 },
+            frequencyBands: patient.frequency_bands || [
+              { wave: 'Delta', power: 25 },
+              { wave: 'Theta', power: 40 },
               { wave: 'Alpha', power: isJames ? 88 : 35 },
               { wave: 'Beta', power: isEleanor ? 92 : 30 },
               { wave: 'Gamma', power: 15 }
@@ -1151,46 +1148,9 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
     }
   };
 
-  // Fetch patient data from API on mount
   useEffect(() => {
     fetchPatients();
   }, []);
-=======
-  
-  // Live Workspace Patient State (persisted in localStorage)
-  const [livePatients, setLivePatients] = useState(() => {
-    const saved = localStorage.getItem('snn_live_patients');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isDemo) {
-      localStorage.setItem('snn_live_patients', JSON.stringify(livePatients));
-    }
-  }, [livePatients, isDemo]);
-
-  // Isolate Demo Mode dataset from Live Workspace dataset
-  const patients = isDemo ? INITIAL_PATIENTS : livePatients;
-
-  const handleSaveNewPatient = (newPatient) => {
-    if (isDemo) {
-      setSelectedPatient(newPatient);
-      setActiveTab('patient-detail');
-      return;
-    }
-    const updated = [newPatient, ...livePatients];
-    setLivePatients(updated);
-    setSelectedPatient(newPatient);
-    setActiveTab('patient-detail');
-  };
-
-  const [activeTab, setActiveTab] = useState('patients'); // 'patients' | 'calendar' | 'patient-detail' | 'analysis'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterState, setFilterState] = useState('ALL'); // 'ALL' | 'Stressed' | 'Focused' | 'Neutral'
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedAnalysisUploadId, setSelectedAnalysisUploadId] = useState(null);
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
 
   // Calendar State
   const [todayDate] = useState(() => new Date(2026, 7, 26)); // Fixed anchor date Aug 26, 2026
@@ -1309,13 +1269,8 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
 
           <div className="nav-section-title mt-6">QUICK ACTIONS</div>
           <button
-<<<<<<< HEAD
-            className="nav-item text-blue-500"
-            onClick={() => navigate('/analysis')}
-=======
             className={`nav-item ${activeTab === 'analysis' ? 'active' : ''}`}
             onClick={() => { setActiveTab('analysis'); setSelectedAnalysisUploadId(null); }}
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
           >
             <Plus size={18} />
             <span>Upload New EDF File</span>
@@ -1357,25 +1312,20 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
               {activeTab === 'patients' && 'Patients Directory & SNN Monitoring'}
               {activeTab === 'calendar' && 'Clinical Calendar & Patient Schedule'}
               {activeTab === 'patient-detail' && 'Psychiatric Clinical Assessment & Patient Record'}
-<<<<<<< HEAD
               {activeTab === 'collaboration' && 'Care Team Collaboration & Communication'}
-=======
               {activeTab === 'analysis' && 'File Analysis & EDF Wave Processing'}
               {activeTab === 'register-patient' && 'Register New Clinical Patient & Telemetry'}
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
             </h2>
             <p className="topbar-subtitle">
               {activeTab === 'patients' && 'Manage patient neurological records, EDF EEG analyses, and SNN stress scores'}
               {activeTab === 'calendar' && 'Select dates to view scheduled patient EEG sessions and diagnostic logs'}
               {activeTab === 'patient-detail' && selectedPatient && `Comprehensive neurological profile, check-up issues, EEG graphs, and session logs for ${selectedPatient.name}`}
-<<<<<<< HEAD
               {activeTab === 'collaboration' && 'Secure messaging, task management, and shared notes for care team coordination'}
-=======
               {activeTab === 'analysis' && 'Upload raw EDF or CSV files to execute SNN wave decomposition, FFT spectral analysis, and generate psychiatric diagnostic reports'}
               {activeTab === 'register-patient' && 'Create patient profile, attach raw EDF / biometric telemetry files for analysis, and record baseline metrics'}
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
             </p>
           </div>
+
 
           <div className="topbar-actions flex items-center gap-2.5">
             {isDemo && (
@@ -1414,7 +1364,6 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
         {/* TAB 1: PATIENTS DIRECTORY (LIST VIEW) */}
         {activeTab === 'patients' && (
           <div className="workspace-content animate-fade-in">
-<<<<<<< HEAD
             {/* Loading State */}
             {loading && (
               <div className="loading-container">
@@ -1486,165 +1435,29 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
                     </div>
 
                     <button
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95"
+                      className="btn-register-patient-top"
+                      style={{
+                        background: 'linear-gradient(135deg, #0062FF, #00B4D8)',
+                        color: '#FFFFFF',
+                        padding: '8px 16px',
+                        borderRadius: '12px',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        border: 'none',
+                        boxShadow: '0 4px 14px rgba(0, 98, 255, 0.25)'
+                      }}
                       onClick={() => setAddPatientModalOpen(true)}
                     >
                       <UserPlus size={15} />
                       <span>Register Patient</span>
-=======
-            {patients.length === 0 ? (
-              <div className="clinical-card p-10 text-center flex flex-col items-center justify-center my-6 border-2 border-dashed border-emerald-400/60 bg-emerald-50/60 rounded-2xl shadow-sm">
-                <div className="p-4 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-700 mb-4 shadow-inner">
-                  <Users size={36} />
-                </div>
-                <h3 className="text-xl font-extrabold text-emerald-950 mb-1 tracking-tight">Live Workspace is Empty</h3>
-                <p className="text-xs text-emerald-800/80 max-w-md mb-6 leading-relaxed">
-                  No patient records have been registered in your clinical workspace yet. Click below or use the top right navigation button to register your first patient.
-                </p>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="px-5 py-2.5 rounded-xl text-white font-bold bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900 shadow-md transition-all flex items-center gap-2 text-xs"
-                    onClick={() => setActiveTab('register-patient')}
-                  >
-                    <Plus size={16} />
-                    <span>Register First Patient</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Search & Filter Control Bar */}
-                <div className="controls-bar">
-                  <div className="search-box">
-                    <Search size={18} className="search-icon" />
-                    <input
-                      type="text"
-                      placeholder="Search by patient name, ID, or diagnosis..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                      <button className="clear-search" onClick={() => setSearchQuery('')}>
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="filter-pills">
-                    <button
-                      className={`filter-pill ${filterState === 'ALL' ? 'active' : ''}`}
-                      onClick={() => setFilterState('ALL')}
-                    >
-                      All Patients ({patients.length})
-                    </button>
-                    <button
-                      className={`filter-pill stressed ${filterState === 'Stressed' ? 'active' : ''}`}
-                      onClick={() => setFilterState('Stressed')}
-                    >
-                      Stressed (High Risk)
-                    </button>
-                    <button
-                      className={`filter-pill focused ${filterState === 'Focused' ? 'active' : ''}`}
-                      onClick={() => setFilterState('Focused')}
-                    >
-                      Focused
-                    </button>
-                    <button
-                      className={`filter-pill neutral ${filterState === 'Neutral' ? 'active' : ''}`}
-                      onClick={() => setFilterState('Neutral')}
-                    >
-                      Neutral / Rest
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
                     </button>
                   </div>
                 </div>
 
-<<<<<<< HEAD
-            {/* Patients List Table Card */}
-            <div className="table-card">
-              <table className="patients-table">
-                <thead>
-                  <tr>
-                    <th>Patient Info</th>
-                    <th>Cognitive State</th>
-                    <th>SNN Risk Score</th>
-                    <th>EEG Metrics</th>
-                    <th>Session Date & Time</th>
-                    <th>EDF Status</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPatients.length > 0 ? (
-                    filteredPatients.map(p => (
-                      <tr key={p.id} className="patient-row">
-                        <td>
-                          <div className="patient-name-block">
-                            <span className="patient-name">{p.name || 'Unknown'}</span>
-                            <span className="patient-meta">{p.id} • {(p.age || 0)} yrs • {(p.gender || 'Unknown')}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`status-badge ${(p.cognitiveState || 'Neutral').toLowerCase()}`}>
-                            {(p.cognitiveState || 'Neutral') === 'Stressed' && <AlertTriangle size={12} />}
-                            {(p.cognitiveState || 'Neutral') === 'Focused' && <CheckCircle2 size={12} />}
-                            {(p.cognitiveState || 'Neutral')}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="risk-score-wrapper">
-                            <div className="risk-bar-container">
-                              <div
-                                className={`risk-bar ${(p.snnRiskScore || 0) > 70 ? 'high' : (p.snnRiskScore || 0) > 40 ? 'med' : 'low'}`}
-                                style={{ width: `${(p.snnRiskScore || 0)}%` }}
-                              />
-                            </div>
-                            <span className="risk-value">{(p.snnRiskScore || 0)}% SNN Spike</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="metrics-cell">
-                            <span className="metric-tag">Beta/Alpha: <strong>{(p.betaAlphaRatio || '1.0')}</strong></span>
-                            <span className="metric-tag">HR: <strong>{(p.heartRate || 0)} BPM</strong></span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="time-cell">
-                            <Clock size={13} className="text-blue-600" />
-                            <span>{(p.sessionDate || '')} at {(p.sessionTime || '')}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="edf-badge">
-                            {(p.edfStatus || 'Not Uploaded')}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="actions-cell">
-                            <button
-                              className="btn-action-view"
-                              onClick={() => handleOpenPatientDetail(p)}
-                              title="Open Full Clinical Patient Details Window"
-                            >
-                              <Eye size={15} />
-                              <span>Details</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="no-data-cell">
-                        No patient records found matching your query.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-=======
                 {/* Patients List Table Card */}
                 <div className="table-card">
                   <table className="patients-table">
@@ -1665,43 +1478,43 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
                           <tr key={p.id} className="patient-row">
                             <td>
                               <div className="patient-name-block">
-                                <span className="patient-name">{p.name}</span>
-                                <span className="patient-meta">{p.id} • {p.age} yrs • {p.gender}</span>
+                                <span className="patient-name">{p.name || 'Unknown'}</span>
+                                <span className="patient-meta">{p.id} • {(p.age || 0)} yrs • {(p.gender || 'Unknown')}</span>
                               </div>
                             </td>
                             <td>
-                              <span className={`status-badge ${p.cognitiveState.toLowerCase()}`}>
-                                {p.cognitiveState === 'Stressed' && <AlertTriangle size={12} />}
-                                {p.cognitiveState === 'Focused' && <CheckCircle2 size={12} />}
-                                {p.cognitiveState}
+                              <span className={`status-badge ${(p.cognitiveState || 'Neutral').toLowerCase()}`}>
+                                {(p.cognitiveState || 'Neutral') === 'Stressed' && <AlertTriangle size={12} />}
+                                {(p.cognitiveState || 'Neutral') === 'Focused' && <CheckCircle2 size={12} />}
+                                {(p.cognitiveState || 'Neutral')}
                               </span>
                             </td>
                             <td>
                               <div className="risk-score-wrapper">
                                 <div className="risk-bar-container">
                                   <div
-                                    className={`risk-bar ${p.snnRiskScore > 70 ? 'high' : p.snnRiskScore > 40 ? 'med' : 'low'}`}
-                                    style={{ width: `${p.snnRiskScore}%` }}
+                                    className={`risk-bar ${(p.snnRiskScore || 0) > 70 ? 'high' : (p.snnRiskScore || 0) > 40 ? 'med' : 'low'}`}
+                                    style={{ width: `${(p.snnRiskScore || 0)}%` }}
                                   />
                                 </div>
-                                <span className="risk-value">{p.snnRiskScore}% SNN Spike</span>
+                                <span className="risk-value">{(p.snnRiskScore || 0)}% SNN Spike</span>
                               </div>
                             </td>
                             <td>
                               <div className="metrics-cell">
-                                <span className="metric-tag">Beta/Alpha: <strong>{p.betaAlphaRatio}</strong></span>
-                                <span className="metric-tag">HR: <strong>{p.heartRate} BPM</strong></span>
+                                <span className="metric-tag">Beta/Alpha: <strong>{(p.betaAlphaRatio || '1.0')}</strong></span>
+                                <span className="metric-tag">HR: <strong>{(p.heartRate || 0)} BPM</strong></span>
                               </div>
                             </td>
                             <td>
                               <div className="time-cell">
-                                <Clock size={13} className="text-emerald-500" />
-                                <span>{p.sessionDate} at {p.sessionTime}</span>
+                                <Clock size={13} className="text-blue-600" />
+                                <span>{(p.sessionDate || '')} at {(p.sessionTime || '')}</span>
                               </div>
                             </td>
                             <td>
                               <span className="edf-badge">
-                                {p.edfStatus}
+                                {(p.edfStatus || 'Not Uploaded')}
                               </span>
                             </td>
                             <td>
@@ -1731,13 +1544,11 @@ export default function EmployerWorkspaceDashboard({ onLogout, isDemo = false })
               </>
             )}
           </div>
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
         )}
-      </div>
-    )}
 
         {/* TAB 2: CALENDAR SCHEDULE SCREEN */}
         {activeTab === 'calendar' && (
+
           <div className="workspace-content animate-fade-in">
             {/* Loading State for Calendar */}
             {loading && (

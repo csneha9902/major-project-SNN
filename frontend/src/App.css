@@ -1250,7 +1250,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .nav-item:hover {
-<<<<<<< HEAD
   background: rgba(14, 165, 233, 0.08);
   color: var(--text-primary);
 }
@@ -1260,45 +1259,18 @@ h1, h2, h3, h4, h5, h6 {
   color: #ffffff;
   border-color: rgba(14, 165, 233, 0.4);
   box-shadow: 0 4px 14px rgba(0, 98, 255, 0.25);
-=======
-  background: rgba(34, 197, 94, 0.12);
-  color: #14532D;
-}
-
-.nav-item.active,
-.sidebar-nav .nav-item.active {
-  background: linear-gradient(135deg, #16A34A, #15803D) !important;
-  color: #FFFFFF !important;
-  border: 1px solid rgba(34, 197, 94, 0.4) !important;
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3) !important;
-}
-
-.nav-item.active svg,
-.sidebar-nav .nav-item.active svg {
-  color: #FFFFFF !important;
-}
-
-.nav-item.active span,
-.sidebar-nav .nav-item.active span {
-  color: #FFFFFF !important;
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
 }
 
 .badge-count {
   margin-left: auto;
   font-size: 0.72rem;
-<<<<<<< HEAD
   font-weight: 700;
   background: rgba(14, 165, 233, 0.15);
   color: #0052CC;
-=======
-  font-weight: 800;
-  background: rgba(34, 197, 94, 0.18);
-  color: #14532D;
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
   padding: 2px 8px;
   border-radius: var(--radius-full);
 }
+
 
 .nav-item.active .badge-count,
 .sidebar-nav .nav-item.active .badge-count {
@@ -2743,8 +2715,8 @@ h1, h2, h3, h4, h5, h6 {
   height: fit-content;
 }
 
-<<<<<<< HEAD
 .sidebar-header h2 {
+
   font-family: var(--font-heading);
   font-size: 1.15rem;
   font-weight: 800;
@@ -3139,122 +3111,3 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-=======
-/* ========================================================
-   MASTER DESIGN SYSTEM POLISH — ULTRA-PREMIUM AESTHETICS
-   ======================================================== */
-
-/* Smooth custom scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(34, 197, 94, 0.25);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(22, 163, 74, 0.45);
-}
-
-/* Polished focus ring */
-*:focus-visible {
-  outline: 2px solid #16A34A !important;
-  outline-offset: 2px;
-}
-
-/* Button tactile animations */
-button, .btn-credentials-submit, .btn-hero-action, .btn-action-view, .filter-pill, .nav-item {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-button:active, .btn-hero-action:active, .btn-credentials-submit:active {
-  transform: scale(0.98) !important;
-}
-
-/* Card elevation & glow on hover */
-.clinical-card, .patient-hero-card, .metric-strip-card, .table-card, .landing-card {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
-}
-
-.clinical-card:hover, .patient-hero-card:hover, .recorded-sessions-card:hover {
-  border-color: rgba(34, 197, 94, 0.4) !important;
-  box-shadow: 0 12px 32px rgba(20, 83, 45, 0.08), 0 0 20px rgba(34, 197, 94, 0.06) !important;
-}
-
-/* Polished Table Rows */
-.patient-row {
-  transition: background 0.2s ease, transform 0.2s ease !important;
-}
-
-.patient-row:hover {
-  background: linear-gradient(90deg, rgba(34, 197, 94, 0.06) 0%, rgba(255, 255, 255, 0.98) 100%) !important;
-}
-
-/* Glowing accent badges */
-.badge-clinical {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(21, 128, 61, 0.12)) !important;
-  border: 1px solid rgba(34, 197, 94, 0.3) !important;
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.15) !important;
-}
-
-/* Interactive Nav Items */
-.sidebar-nav .nav-item.active {
-  background: linear-gradient(135deg, #16A34A, #15803D) !important;
-  color: #FFFFFF !important;
-  border-left: 3.5px solid #14532D !important;
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35) !important;
-}
-
-.sidebar-nav .nav-item.active * {
-  color: #FFFFFF !important;
-}
-
-/* Subtle Shimmer for High Priority Metrics */
-@keyframes subtlePulseGlow {
-  0%, 100% { box-shadow: 0 0 15px rgba(34, 197, 94, 0.15); }
-  50% { box-shadow: 0 0 25px rgba(34, 197, 94, 0.3); }
-}
-
-.metric-strip-card:hover {
-  animation: subtlePulseGlow 3s infinite ease-in-out;
-}
-
-/* AI Recommendation Engine Styling */
-.clinical-recommendations-window {
-  background: #FFFFFF !important;
-  border-radius: var(--radius-lg) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-.priority-tag.priority-red {
-  background: #FEF2F2 !important;
-  color: #DC2626 !important;
-  border-color: #FCA5A5 !important;
-}
-
-.priority-tag.priority-amber {
-  background: #FFFBEB !important;
-  color: #D97706 !important;
-  border-color: #FCD34D !important;
-}
-
-.priority-tag.priority-green {
-  background: #F0FDF4 !important;
-  color: #16A34A !important;
-  border-color: #86EFAC !important;
-}
-
-.recommendation-category-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
-}
-
-.recommendation-category-card:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 8px 24px rgba(20, 83, 45, 0.08) !important;
-  border-color: rgba(34, 197, 94, 0.5) !important;
-}
->>>>>>> 340dcbec52ed796eb91c60773f1293a6610ce04d
