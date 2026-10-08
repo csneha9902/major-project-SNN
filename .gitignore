@@ -39,3 +39,28 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# -----------------------------------------------------------------------
+# Dataset protection — DEAP and other EEG/physiological datasets
+# The DEAP dataset must NEVER be committed to this repository.
+# Researchers supply it locally via the DEAP_DATA_DIR environment variable.
+# -----------------------------------------------------------------------
+*.dat
+*.mat
+*.edf
+*.fdt
+*.set
+*.bdf
+*.cnt
+*.vhdr
+*.vmrk
+
+# Common local dataset directory names
+# NOTE: anchored with leading slash so only ROOT-level directories are excluded.
+# This prevents backend/snn_ai_optimizer/datasets/ Python module from being hidden.
+/data/
+/Datasets/
+/datasets/
+/DEAP/
+/deap/
+/raw_data/
