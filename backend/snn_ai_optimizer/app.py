@@ -18,12 +18,16 @@ except Exception as e:
         from fastapi import APIRouter
         return APIRouter(prefix="/auth", tags=["auth"])
     def get_current_user():
-        from fastapi import Depends, HTTPException, status
+        from fastapi import Depends
         from fastapi.security import HTTPBearer
         security = HTTPBearer(auto_error=False)
         async def _get_user(credentials = None):
-            # Allow unauthenticated access for now
-            return {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
+            return {
+                "sub": "researcher@eeg-snn.edu",
+                "email": "researcher@eeg-snn.edu",
+                "name": "EEG SNN Researcher",
+                "role": "researcher"
+            }
         return Depends(_get_user)
 
 # Upload imports
@@ -67,21 +71,20 @@ except Exception as e:
     auth_router = APIRouter(prefix="/auth", tags=["auth"])
     
     def _create_demo_token():
-        """Helper to create demo token with fallbacks."""
+        """Helper to create researcher demo token."""
         try:
             from snn_ai_optimizer.auth.jwt_utils import create_access_token
-            token_data = {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
+            token_data = {"sub": "researcher@eeg-snn.edu", "email": "researcher@eeg-snn.edu", "name": "EEG SNN Researcher"}
             return create_access_token(token_data)
         except ImportError:
             try:
                 from jose import jwt
                 import datetime
                 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production-min-32-chars")
-                token_data = {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor", "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
+                token_data = {"sub": "researcher@eeg-snn.edu", "email": "researcher@eeg-snn.edu", "name": "EEG SNN Researcher", "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
                 return jwt.encode(token_data, SECRET_KEY, algorithm="HS256")
             except ImportError:
-                # Last resort - return a simple demo token string
-                return "demo_token_demo@doctor.com"
+                return "demo_token_researcher@eeg-snn.edu"
     
     @auth_router.get("/login")
     async def fallback_login():
@@ -100,7 +103,7 @@ except Exception as e:
     @auth_router.get("/me")
     async def fallback_me():
         """Fallback /auth/me endpoint."""
-        return {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
+        return {"sub": "researcher@eeg-snn.edu", "email": "researcher@eeg-snn.edu", "name": "EEG SNN Researcher", "role": "researcher"}
     
     app.include_router(auth_router)
 
@@ -111,37 +114,39 @@ try:
 except Exception as e:
     print(f"Warning: SNN module import failed: {e}")
 
-# Include Patient Router (mounted under /api so frontend /api/patients/ calls work)
-try:
-    from snn_ai_optimizer.patient.router import router as patient_router
-    app.include_router(patient_router, prefix="/api")
-    print("Patient router included successfully at /api/patients/")
-except Exception as e:
-    print(f"Warning: Patient router import failed: {e}")
+# Legacy medical modules: decoupled per AGENTS.md Rule 12 & Rule 20
+ENABLE_LEGACY_MEDICAL_MODULES = os.environ.get("ENABLE_LEGACY_MEDICAL_MODULES", "false").lower() in ("true", "1")
 
-# Include Appointment Router
-try:
-    from snn_ai_optimizer.appointment.router import router as appointment_router
-    app.include_router(appointment_router, prefix="/api")
-    print("Appointment router included successfully at /api/appointments/")
-except Exception as e:
-    print(f"Warning: Appointment router import failed: {e}")
+if ENABLE_LEGACY_MEDICAL_MODULES:
+    try:
+        from snn_ai_optimizer.patient.router import router as patient_router
+        app.include_router(patient_router, prefix="/api")
+        print("Legacy Patient router included at /api/patients/")
+    except Exception as e:
+        print(f"Warning: Patient router import failed: {e}")
 
-# Include Collaboration Router
-try:
-    from snn_ai_optimizer.collaboration.router import router as collaboration_router
-    app.include_router(collaboration_router, prefix="/api")
-    print("Collaboration router included successfully at /api/collaboration/")
-except Exception as e:
-    print(f"Warning: Collaboration router import failed: {e}")
+    try:
+        from snn_ai_optimizer.appointment.router import router as appointment_router
+        app.include_router(appointment_router, prefix="/api")
+        print("Legacy Appointment router included at /api/appointments/")
+    except Exception as e:
+        print(f"Warning: Appointment router import failed: {e}")
 
-# Include Mail Router
-try:
-    from snn_ai_optimizer.mail.router import router as mail_router
-    app.include_router(mail_router, prefix="/api")
-    print("Mail router included successfully at /api/mail/")
-except Exception as e:
-    print(f"Warning: Mail router import failed: {e}")
+    try:
+        from snn_ai_optimizer.collaboration.router import router as collaboration_router
+        app.include_router(collaboration_router, prefix="/api")
+        print("Legacy Collaboration router included at /api/collaboration/")
+    except Exception as e:
+        print(f"Warning: Collaboration router import failed: {e}")
+
+    try:
+        from snn_ai_optimizer.mail.router import router as mail_router
+        app.include_router(mail_router, prefix="/api")
+        print("Legacy Mail router included at /api/mail/")
+    except Exception as e:
+        print(f"Warning: Mail router import failed: {e}")
+else:
+    print("Core EEG SNN Q-Learning mode active. Legacy medical modules decoupled (AGENTS.md Rule 12).")
 
 # CORS (allow frontend at :5173 to access backend)
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
