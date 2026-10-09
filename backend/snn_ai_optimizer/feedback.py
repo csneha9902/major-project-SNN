@@ -10,17 +10,16 @@ def _read_json(p: Path):
 
 def generate_feedback() -> dict:
     latest = _read_json(Path("results/latest_metrics.json")) or {}
-    base = latest.get("baseline") or {}
-    snn_m = latest.get("snn") or {}
+    snn_m = _read_json(Path("results/snn/metrics.json")) or latest.get("snn") or {}
+    base = _read_json(Path("results/baseline/metrics.json")) or latest.get("baseline") or {}
     eeg  = latest.get("preprocess_eeg") or {}
-    mri  = latest.get("preprocess_mri") or {}
 
     tips = []
     actions = []
 
-    # Model quality heuristics
+    # Model quality heuristics from genuine held-out evaluation
     acc = max(base.get("accuracy", 0), snn_m.get("accuracy", 0))
-    auc = max(base.get("auc", 0), snn_m.get("auc", 0))
+    auc = max(base.get("auc", 0) or 0.0, snn_m.get("auc", 0) or 0.0)
 
     if acc < 0.6:
         tips.append("Accuracy is low; consider collecting more samples or stronger features (e.g., EEG band-power, MRI ROIs).")
@@ -37,11 +36,8 @@ def generate_feedback() -> dict:
 
     # Data readiness
     if eeg.get("ok") is False:
-        tips.append("EEG preprocessing failed—using synthetic data. Check PhysioNet download/cache path.")
-        actions.append("Mount ./mne_data volume; verify network egress for container.")
-    if mri.get("ok") is False:
-        tips.append("MRI sample download failed—using synthetic NIfTI. Provide a local small NIfTI for realism.")
-        actions.append("Drop 'sample_T1.nii.gz' in backend/data and restart.")
+        tips.append("EEG preprocessing failed. Ensure DEAP_DATA_DIR points to real DEAP dataset files.")
+        actions.append("Configure DEAP_DATA_DIR environment variable with local DEAP dataset path.")
 
     # Wellness / study pacing (simple placeholders)
     tips.append("Use 25–40 min focus blocks with 5–7 min breaks; hydrate and stretch between sessions.")

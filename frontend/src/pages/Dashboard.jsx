@@ -28,36 +28,16 @@ const formatTimestamp = (ts) => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const getRecommendationForState = (state, beta = 1.0, alpha = 0.5) => {
-  if (state === 'Stressed' || (beta - alpha > 0.4)) {
-    return {
-      task: "Take 5-min Breathing Break & Lower Task Difficulty",
-      difficulty: 1,
-      reasoning: "High SNN cognitive stress detected: elevated beta frequency. Lowering workload prevents mental exhaustion."
-    };
-  } else if (state === 'Focused' || (alpha - beta > 0.1)) {
-    return {
-      task: "Deep Concentration: Attempt High-Complexity Problems",
-      difficulty: 4,
-      reasoning: "Optimal neural synchronization detected: dominant alpha rhythm indicates high focus and readiness for complex learning."
-    };
-  }
-  return {
-    task: "Maintain Steady Pace: Review Chapter 3 Concept Check",
-    difficulty: 3,
-    reasoning: "Balanced baseline cognitive state: steady alpha-to-beta ratio maintains optimal sustained attention."
-  };
-};
-
 export default function Dashboard() {
   const { frame, running, startSimulation, stopSimulation } = useDataStream();
   const { user, logout, getAuthHeaders } = useAuth();
   const navigate = useNavigate();
 
-  const userRole = localStorage.getItem('user_role') || 'employer';
+  const userRole = localStorage.getItem('user_role') || 'student';
 
   // Data Source mode: 'none' | 'file' | 'stream'
   const [dataSource, setDataSource] = useState('none');
+  const [backendRec, setBackendRec] = useState(null);
   const [uploadId, setUploadId] = useState(null);
   const [sourceMetadata, setSourceMetadata] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
@@ -99,7 +79,7 @@ export default function Dashboard() {
           beta: Number(t.beta.toFixed(2)),
           heartRate: Math.round(t.heart_rate || 75),
           cognitive_state: t.cognitive_state || 'Neutral',
-          recommendation: getRecommendationForState(t.cognitive_state, t.beta, t.alpha)
+          recommendation: t.recommendation || null,
         }));
         setChartData(points);
       }
@@ -147,7 +127,7 @@ export default function Dashboard() {
           beta: frame?.eeg?.beta ?? 0.5,
           heartRate: frame?.hrv?.heart_rate_bpm ?? 75,
           cognitive_state: frame?.cognitive_state || "Neutral",
-          recommendation: frame?.recommendation || getRecommendationForState(frame?.cognitive_state),
+          recommendation: frame?.recommendation || null,
         };
         const next = [...prev, newRow];
         return next.slice(-60);
@@ -195,11 +175,31 @@ export default function Dashboard() {
 
   const dominantState = analysisData?.extended_analysis?.patterns?.dominant_state;
   const displayState = hoveredState || (dataSource === 'stream' ? frame?.cognitive_state : dominantState) || lastPoint?.cognitive_state || 'Neutral';
-  
+
+  // Dynamic fetch of Q-table recommendation if not in frame
+  useEffect(() => {
+    let active = true;
+    const fetchRec = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/recommend?state=${encodeURIComponent(displayState)}`);
+        if (res.ok && active) {
+          const rec = await res.json();
+          setBackendRec(rec);
+        }
+      } catch (e) {
+        // Graceful silent fallback
+      }
+    };
+    if (!frame?.recommendation && !lastPoint?.recommendation) {
+      fetchRec();
+    }
+    return () => { active = false; };
+  }, [displayState, frame?.recommendation, lastPoint?.recommendation]);
+
   const displayRecommendation = hoveredRecommendation || 
     (dataSource === 'stream' ? frame?.recommendation : null) || 
     lastPoint?.recommendation || 
-    getRecommendationForState(displayState, currentMetrics.beta, currentMetrics.alpha);
+    backendRec;
 
   return (
     <div className="app-container">
@@ -226,6 +226,27 @@ export default function Dashboard() {
       {/* STATE 2 & 3: File or Live Stream Data Active -> Show Full Dashboard */}
       {dataSource !== 'none' && (
         <div className="animate-fade-in">
+          {/* Explicit DEMO MODE Warning Banner per AGENTS.md Rule 4 */}
+          {dataSource === 'stream' && (
+            <div className="demo-mode-banner p-3.5 rounded-xl mb-5 bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white text-[0.68rem] tracking-wider uppercase shadow-xs">
+                  DEMO MODE
+                </span>
+                <span className="font-medium text-slate-700">
+                  Live stream uses synthetic EEG telemetry for interactive demonstration. Not evaluated on held-out research subjects.
+                </span>
+              </div>
+              {frame?.snn_inference && (
+                <div className="flex items-center gap-2 font-mono text-[0.7rem] bg-white/90 px-2.5 py-1 rounded-lg border border-amber-300/80 shadow-xs">
+                  <span className="text-slate-600">SNN Arousal:</span>
+                  <strong className="text-amber-800">{frame.snn_inference.arousal_label}</strong>
+                  <span className="text-slate-500">({Math.round((frame.snn_inference.confidence || 0) * 100)}% conf)</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* File Analysis Action Banner if file is active */}
           {dataSource === 'file' && (
             <div className="file-active-banner p-4 rounded-xl mb-6 bg-blue-50/80 border border-blue-200 flex flex-wrap items-center justify-between gap-4">
@@ -234,9 +255,14 @@ export default function Dashboard() {
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h4 className="font-heading font-bold text-sm text-[var(--text-primary)]">
-                    Analyzing Recording: <span className="font-mono text-blue-700">{sourceMetadata?.filename}</span>
-                  </h4>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h4 className="font-heading font-bold text-sm text-[var(--text-primary)]">
+                      Analyzing Recording: <span className="font-mono text-blue-700">{sourceMetadata?.filename}</span>
+                    </h4>
+                    <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      RESEARCH MODE — 128-CH SNN
+                    </span>
+                  </div>
                   <p className="text-xs text-[var(--text-secondary)]">
                     Full SNN cognitive decomposition complete • {chartData.length} samples processed
                   </p>
@@ -287,7 +313,11 @@ export default function Dashboard() {
             </div>
 
             <div className="right-section">
-              <TaskRecommendationCard recommendation={displayRecommendation} />
+              <TaskRecommendationCard 
+                recommendation={displayRecommendation} 
+                currentState={displayState}
+                nextState={displayState}
+              />
               <SessionSummaryPanel isRunning={running} />
             </div>
           </div>

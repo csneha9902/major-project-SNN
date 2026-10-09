@@ -3,9 +3,10 @@ import { Brain, ArrowRight, Activity, ShieldCheck, Zap, CheckCircle2, Sparkles, 
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export default function TaskRecommendationCard({ recommendation }) {
+export default function TaskRecommendationCard({ recommendation, currentState, nextState }) {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackSuccess, setFeedbackSuccess] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   const taskTitle = recommendation?.task || 'Practice Easy Problems';
   const situation = recommendation?.situation || (
@@ -20,7 +21,7 @@ export default function TaskRecommendationCard({ recommendation }) {
     'Hydrate and step back from high-intensity problem solving for a 5-minute break.'
   ];
   const difficultyTag = recommendation?.difficulty_tag || (recommendation?.difficulty ? `Tier ${recommendation.difficulty} Load` : 'Tier 1 - Reduced Load');
-  const state = recommendation?.cognitive_state || recommendation?.state || 'Stressed';
+  const state = recommendation?.cognitive_state || recommendation?.state || currentState || 'Neutral';
 
   // Badge styling depending on state
   const stateBadgeStyle = {
@@ -32,18 +33,24 @@ export default function TaskRecommendationCard({ recommendation }) {
   const handleFeedback = async (rewardVal, label) => {
     try {
       setSubmittingFeedback(true);
+      const targetNextState = nextState || currentState || state;
       const res = await fetch(`${API_BASE}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           state: state || 'Neutral',
           task_id: recommendation?.task_index ?? 0,
-          reward: rewardVal
+          reward: rewardVal,
+          next_state: targetNextState,
         })
       });
       if (res.ok) {
-        setFeedbackSuccess(`Q-table updated: ${label} (${rewardVal > 0 ? '+' : ''}${rewardVal})`);
-        setTimeout(() => setFeedbackSuccess(null), 4000);
+        const body = await res.json();
+        if (body.update) {
+          setLastUpdate(body.update);
+        }
+        setFeedbackSuccess(`Bellman TD: ${label} (${rewardVal > 0 ? '+' : ''}${rewardVal})`);
+        setTimeout(() => setFeedbackSuccess(null), 5000);
       }
     } catch (err) {
       console.warn("Feedback update failed:", err);
@@ -156,6 +163,34 @@ export default function TaskRecommendationCard({ recommendation }) {
             <span>Hard (-0.5)</span>
           </button>
         </div>
+
+        {/* Live Bellman Q-Learning Statistics */}
+        {lastUpdate && (
+          <div className="mt-3 p-2.5 rounded-lg bg-blue-50/80 border border-blue-200/80 animate-fade-in text-xs font-mono">
+            <div className="flex items-center justify-between text-blue-950 font-semibold mb-1 text-[0.72rem]">
+              <span>Q({state}, a_{recommendation?.task_index ?? 0}) Update</span>
+              <span className="px-1.5 py-0.5 rounded bg-blue-200/60 text-blue-800 text-[0.68rem]">
+                Step #{lastUpdate.n_updates}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[0.68rem] text-slate-700">
+              <div>
+                <span className="text-slate-500 block text-[0.62rem]">Q-VALUE</span>
+                <span>{lastUpdate.old_q} → <strong className="text-blue-700">{lastUpdate.new_q}</strong></span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[0.62rem]">TD ERROR (δ)</span>
+                <span className={lastUpdate.td_error >= 0 ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                  {lastUpdate.td_error > 0 ? `+${lastUpdate.td_error}` : lastUpdate.td_error}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[0.62rem]">EXPLORATION (ε)</span>
+                <span className="text-indigo-700 font-bold">{lastUpdate.epsilon}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SNN Adaptation Rationale */}

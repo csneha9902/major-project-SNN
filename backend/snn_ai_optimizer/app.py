@@ -334,7 +334,7 @@ async def run_pipeline():
 from snn_ai_optimizer.feedback import generate_feedback
 from typing import Optional
 from pydantic import BaseModel, Field
-from snn_ai_optimizer.optimizer import update_q_table
+from snn_ai_optimizer.optimizer import update_q_table, recommend_task, _current_epsilon, _load_q_table
 
 class FeedbackRequest(BaseModel):
     state: str
@@ -354,18 +354,75 @@ async def post_feedback(req: FeedbackRequest):
         "message": "Q-table updated (Bellman TD)",
         "update": update_info,
     }
+
+@app.get("/api/recommend")
+async def get_recommendation(state: str = "Neutral"):
+    """
+    Returns an epsilon-greedy task recommendation from the Bellman Q-table.
+    """
+    rec = recommend_task(state)
+    q_table = _load_q_table()
+    eps = _current_epsilon(q_table)
+    return {
+        **rec,
+        "epsilon": round(eps, 6),
+        "state": state,
+    }
+
+@app.get("/api/qtable/state")
+async def get_qtable_state():
+    """
+    Returns the current state of the tabular Q-learning policy.
+    """
+    q_table = _load_q_table()
+    meta = q_table.get("__meta__", {})
+    active_states = [s for s in q_table.keys() if s != "__meta__"]
+    return {
+        "states": active_states,
+        "n_updates": meta.get("n_updates", 0),
+        "epsilon": round(meta.get("epsilon", _current_epsilon(q_table)), 6),
+        "q_table": {k: v for k, v in q_table.items() if k != "__meta__"},
+    }
+
+@app.get("/api/benchmark/summary")
+async def get_benchmark_summary():
+    """
+    Returns real held-out evaluation metrics from baseline and SNN pipelines.
+    Never fabricates metrics: returns null for missing models.
+    """
+    baseline_path = Path("results/baseline/metrics.json")
+    snn_path = Path("results/snn/metrics.json")
+
+    baseline_metrics = None
+    snn_metrics = None
+
+    if baseline_path.exists():
+        try:
+            baseline_metrics = json.loads(baseline_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if snn_path.exists():
+        try:
+            snn_metrics = json.loads(snn_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "baseline": baseline_metrics,
+        "snn": snn_metrics,
+        "has_baseline": baseline_metrics is not None,
+        "has_snn": snn_metrics is not None,
+    }
+
 from fastapi.responses import JSONResponse
 
 @app.get("/results/history")
 async def get_history():
     p = Path("results/history/metrics_log.json")
     if not p.exists():
-        # Provide a small default placeholder
-        return {"runs": [
-            {"ts": "T-2", "baseline": {"accuracy": 0.70, "auc": 0.72}, "snn": {"accuracy": 0.60, "auc": 0.62}},
-            {"ts": "T-1", "baseline": {"accuracy": 0.78, "auc": 0.80}, "snn": {"accuracy": 0.65, "auc": 0.67}},
-            {"ts": "T-0", "baseline": {"accuracy": 0.85, "auc": 0.90}, "snn": {"accuracy": 0.48, "auc": 0.49}},
-        ]}
+        # Clean empty fallback — never fabricate metrics (AGENTS.md Rule 1)
+        return {"runs": []}
     try:
         arr = json.loads(p.read_text(encoding="utf-8"))
         # Fold snapshots by timestamp into combined rows for plotting
