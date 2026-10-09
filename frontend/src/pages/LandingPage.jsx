@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, Activity, FileText, UserCheck, Building2, User, Mail, Lock, LogIn } from 'lucide-react';
+import { Brain, Activity, FileText, UserCheck, Mail, Lock, LogIn } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('employer'); // 'employer' | 'user'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +20,7 @@ export default function LandingPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      localStorage.setItem('user_role', activeTab);
+      localStorage.setItem('user_role', 'researcher');
       window.location.href = `/auth/login`;
     } catch (error) {
       console.error('Login error:', error);
@@ -33,8 +32,8 @@ export default function LandingPage() {
     setError('');
     setLoading(true);
     try {
-      const demoUser = activeTab === 'employer' ? 'dr.smith' : 'tech.jones';
-      const demoPass = activeTab === 'employer' ? 'doctor123' : 'tech123';
+      const demoUser = 'dr.smith';
+      const demoPass = 'doctor123';
       const res = await fetch('/auth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,8 +48,8 @@ export default function LandingPage() {
 
       const data = await res.json();
       localStorage.setItem('auth_token', data.access_token);
-      const backendRole = data.user?.role || (activeTab === 'employer' ? 'Doctor' : 'Technician');
-      localStorage.setItem('user_role', activeTab);
+      const backendRole = data.user?.role || 'Researcher';
+      localStorage.setItem('user_role', 'researcher');
       localStorage.setItem('user_backend_role', backendRole);
       navigate('/dashboard');
     } catch (err) {
@@ -79,10 +78,8 @@ export default function LandingPage() {
 
       const data = await res.json();
       localStorage.setItem('auth_token', data.access_token);
-      // Use the role returned from the backend, but also respect the tab
-      const backendRole = data.user?.role || 'doctor';
-      const uiRole = activeTab; // 'employer' or 'user'
-      localStorage.setItem('user_role', uiRole);
+      const backendRole = data.user?.role || 'researcher';
+      localStorage.setItem('user_role', 'researcher');
       localStorage.setItem('user_backend_role', backendRole);
       navigate('/dashboard');
     } catch (err) {
@@ -117,62 +114,31 @@ export default function LandingPage() {
             </div>
             <h1>SNN-AI Cognitive Health & Learning Optimizer</h1>
             <p className="landing-subtitle">
-              {activeTab === 'employer' ? 'Professional Portal for Healthcare Providers & Employers' : 'Personal Portal for Patients & Learners'}
+              EEG-Based Affective State Estimation & Reinforcement Learning Task Recommendation
             </p>
           </div>
 
           <div className="landing-card">
-            {/* Tab Switcher Bar right above the login window */}
-            <div className="login-tab-switcher">
-              <button
-                type="button"
-                className={`login-tab-btn ${activeTab === 'employer' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('employer'); setEmail(''); setPassword(''); }}
-              >
-                <Building2 size={18} />
-                <span>Employer Login</span>
-              </button>
-              <button
-                type="button"
-                className={`login-tab-btn ${activeTab === 'user' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('user'); setEmail(''); setPassword(''); }}
-              >
-                <User size={18} />
-                <span>User Login</span>
-              </button>
+            {/* Header */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold font-heading text-slate-900 mb-2">Research & Optimization Portal</h2>
+              <p className="landing-description">
+                Access the neuro-computational workspace to ingest EEG bio-signals, monitor Spiking Neural Network (LIF) affective states, and receive adaptive Q-learning task recommendations.
+              </p>
             </div>
-
-            {/* Tab Content Header */}
-            {activeTab === 'employer' ? (
-              <>
-                <h2>Employer / Healthcare Login</h2>
-                <p className="landing-description">
-                  Access clinical cognitive analysis tools, upload patient EDF files,
-                  and generate comprehensive diagnostic reports with AI-powered insights.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2>User / Patient Login</h2>
-                <p className="landing-description">
-                  Access your personal cognitive wellness dashboard, view daily biometric stress trends,
-                  and receive AI-guided workload & recovery recommendations.
-                </p>
-              </>
-            )}
 
             {/* Fillable Credentials Form */}
             <form className="credentials-form" onSubmit={handleCredentialsSubmit}>
               <div className="form-group">
                 <label className="form-label">
                   <Mail size={15} />
-                  <span>{activeTab === 'employer' ? 'Work Email / Hospital ID' : 'User Email / Student ID'}</span>
+                  <span>Username or Email</span>
                 </label>
                 <div className="input-wrapper">
                   <input
                     type="text"
                     className="credentials-input"
-                    placeholder={activeTab === 'employer' ? 'doctor@hospital.org or dr.smith' : 'user@domain.com or STU-10248'}
+                    placeholder="researcher@domain.edu or admin"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -199,7 +165,7 @@ export default function LandingPage() {
 
               <button type="submit" className="btn-credentials-submit" disabled={loading}>
                 <LogIn size={18} />
-                <span>{loading ? 'Authenticating...' : (activeTab === 'employer' ? 'Sign In as Employer' : 'Sign In as User')}</span>
+                <span>{loading ? 'Authenticating...' : 'Sign In to Workspace'}</span>
               </button>
 
               {error && (
@@ -228,9 +194,9 @@ export default function LandingPage() {
                 color: '#0369A1',
                 lineHeight: '1.6',
               }}>
-                <strong style={{color:'#0284C7', fontWeight: 700}}>Test credentials:</strong>
+                <strong style={{color:'#0284C7', fontWeight: 700}}>Quick Access Credentials:</strong>
                 <br />
-                Doctor: <code>dr.smith</code> / <code>doctor123</code>
+                Researcher: <code>dr.smith</code> / <code>doctor123</code>
                 <br />
                 Admin: <code>admin</code> / <code>admin123</code>
               </div>
@@ -253,15 +219,13 @@ export default function LandingPage() {
 
             <button className="btn-demo-login flex items-center justify-center gap-2" onClick={handleDemoLogin} disabled={loading}>
               <UserCheck size={18} />
-              {activeTab === 'employer' ? 'Explore Demo Employer Version (Pre-loaded Patients)' : 'Continue as Demo User (No OAuth)'}
+              <span>Launch Research Workspace (One-Click Demo Access)</span>
             </button>
 
-
-
             <p className="landing-note">
-              Secure authentication. Your data is protected and encrypted.
+              Secure authentication. Your research data is protected.
               <br />
-              <small className="opacity-75">Demo mode available for testing without OAuth setup.</small>
+              <small className="opacity-75">Demo access available for instant evaluation without OAuth setup.</small>
             </p>
           </div>
 
@@ -270,22 +234,22 @@ export default function LandingPage() {
               <div className="flex justify-center mb-3">
                 <Activity size={28} className="text-[#0062FF]" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,98,255,0.3))' }} />
               </div>
-              <h3>Real-time Monitoring</h3>
-              <p>Live cognitive state tracking and biometric visualization</p>
+              <h3>Real-Time Telemetry</h3>
+              <p>Continuous EEG bio-signal ingestion with live LIF spiking neural inference</p>
             </div>
             <div className="feature-item animate-slide-up">
               <div className="flex justify-center mb-3">
-                <FileText size={28} className="text-[#00B4D8]" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,180,216,0.3))' }} />
+                <Brain size={28} className="text-[#00B4D8]" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,180,216,0.3))' }} />
               </div>
-              <h3>EDF File Analysis</h3>
-              <p>Upload and analyze patient EEG data with advanced algorithms</p>
+              <h3>128-ch Feature Pipeline</h3>
+              <p>Welch PSD frequency band decomposition matching DEAP research training</p>
             </div>
             <div className="feature-item animate-slide-up">
               <div className="flex justify-center mb-3">
                 <FileText size={28} className="text-[#4F46E5]" style={{ filter: 'drop-shadow(0 2px 6px rgba(79,70,229,0.3))' }} />
               </div>
-              <h3>PDF Reports</h3>
-              <p>Generate comprehensive analysis reports for patient records</p>
+              <h3>Adaptive Q-Learning</h3>
+              <p>Closed-loop Bellman reinforcement optimization for personalized cognitive tasks</p>
             </div>
           </div>
 

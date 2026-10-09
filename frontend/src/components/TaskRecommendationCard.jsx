@@ -25,10 +25,12 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
 
   // Badge styling depending on state
   const stateBadgeStyle = {
-    Stressed: 'bg-amber-100 text-amber-800 border-amber-300',
-    Focused: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    Neutral: 'bg-blue-100 text-blue-800 border-blue-300',
-  }[state] || 'bg-blue-100 text-blue-800 border-blue-300';
+    'High Arousal': 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+    'Low Arousal': 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold',
+    Stressed: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+    Focused: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold',
+    Neutral: 'bg-blue-100 text-blue-900 border-blue-300 font-bold',
+  }[state] || 'bg-blue-100 text-blue-900 border-blue-300 font-bold';
 
   const handleFeedback = async (rewardVal, label) => {
     try {
@@ -127,9 +129,13 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
             <Sparkles size={13} className="text-blue-600" />
             Rate Recommendation (Q-Learning Feedback)
           </span>
-          {feedbackSuccess && (
+          {feedbackSuccess ? (
             <span className="text-[0.68rem] text-emerald-600 font-semibold animate-fade-in flex items-center gap-1">
               <CheckCircle2 size={12} /> {feedbackSuccess}
+            </span>
+          ) : (
+            <span className="text-[0.62rem] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+              Q(s, a) ← Q + α[r + γ max Q' - Q]
             </span>
           )}
         </div>
@@ -165,7 +171,7 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
         </div>
 
         {/* Live Bellman Q-Learning Statistics */}
-        {lastUpdate && (
+        {lastUpdate ? (
           <div className="mt-3 p-2.5 rounded-lg bg-blue-50/80 border border-blue-200/80 animate-fade-in text-xs font-mono">
             <div className="flex items-center justify-between text-blue-950 font-semibold mb-1 text-[0.72rem]">
               <span>Q({state}, a_{recommendation?.task_index ?? 0}) Update</span>
@@ -189,6 +195,11 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
                 <span className="text-indigo-700 font-bold">{lastUpdate.epsilon}</span>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200 text-[0.68rem] text-slate-500 flex items-center justify-between font-mono">
+            <span>Tabular RL State: {state}</span>
+            <span className="text-blue-600 font-semibold">Rate action above to trigger live Q-update</span>
           </div>
         )}
       </div>

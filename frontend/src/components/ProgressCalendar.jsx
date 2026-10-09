@@ -30,89 +30,35 @@ const isFutureDate = (d, todayRef = new Date()) => {
   return targetMidnight > todayMidnight;
 };
 
-// Generate pre-loaded realistic progress history for current month (past days only)
+// Load persistent progress history from localStorage, defaulting to today's active session
 const getInitialProgressLogs = (todayRef = new Date()) => {
-  const logs = {};
-  
-  // Populate past days up to today (i <= 0)
-  for (let i = -15; i <= 0; i++) {
-    const d = new Date(todayRef);
-    d.setDate(todayRef.getDate() + i);
-    const key = formatDateKey(d);
-
-    if (i === 0) {
-      // Today (Stressed SNN Session - Current Active Session)
-      logs[key] = {
-        state: 'Stressed',
-        label: 'Acute SNN Stress Spike (Current Session)',
-        avgBeta: 1.12,
-        avgAlpha: 0.36,
-        avgHeartRate: 98,
-        sessionHours: '3h 45m (Active)',
-        stressSpikes: 3,
-        breathingBreaks: 4,
-        snnScore: 82,
-        notes: 'Active EEG monitoring session. High Beta wave activity and elevated SNN stress score recorded.'
-      };
-    } else if (i === -1) {
-      // Yesterday (Stressed)
-      logs[key] = {
-        state: 'Stressed',
-        label: 'Cognitive Stress Evaluation',
-        avgBeta: 1.08,
-        avgAlpha: 0.38,
-        avgHeartRate: 94,
-        sessionHours: '4h 10m',
-        stressSpikes: 4,
-        breathingBreaks: 3,
-        snnScore: 78,
-        notes: 'High cognitive stress detected during extended monitoring session; executed 3 guided breathing breaks.'
-      };
-    } else if (i < -1 && i % 3 === 0) {
-      // Stress Days
-      logs[key] = {
-        state: 'Stressed',
-        label: 'Heavy Study Load',
-        avgBeta: 1.05,
-        avgAlpha: 0.40,
-        avgHeartRate: 92,
-        sessionHours: '3h 15m',
-        stressSpikes: 2,
-        breathingBreaks: 2,
-        snnScore: 80,
-        notes: 'Midterm prep crunch day. High workload with cognitive load adjustments.'
-      };
-    } else if (i < -1 && i % 2 === 0) {
-      // Focused Days
-      logs[key] = {
-        state: 'Focused',
-        label: 'Deep Flow State',
-        avgBeta: 0.78,
-        avgAlpha: 0.72,
-        avgHeartRate: 72,
-        sessionHours: '2h 45m',
-        stressSpikes: 0,
-        breathingBreaks: 4,
-        snnScore: 95,
-        notes: 'Optimal cognitive flow state. High alpha synchronization and steady mental focus.'
-      };
-    } else {
-      // Neutral / Rest Days
-      logs[key] = {
-        state: 'Neutral',
-        label: 'Baseline Rest & Recovery',
-        avgBeta: 0.52,
-        avgAlpha: 0.54,
-        avgHeartRate: 68,
-        sessionHours: '1h 00m',
-        stressSpikes: 0,
-        breathingBreaks: 2,
-        snnScore: 90,
-        notes: 'Light review day and baseline neural recovery. Normal resting heart rate.'
-      };
+  try {
+    const saved = localStorage.getItem('snn_learning_sessions');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed;
+      }
     }
+  } catch (e) {
+    console.warn('Failed to parse saved calendar logs:', e);
   }
-  return logs;
+
+  const key = formatDateKey(todayRef);
+  return {
+    [key]: {
+      state: 'Active Session',
+      label: 'Active EEG Monitoring Session',
+      avgBeta: 0.65,
+      avgAlpha: 0.58,
+      avgHeartRate: 72,
+      sessionHours: 'Active',
+      stressSpikes: 0,
+      breathingBreaks: 0,
+      snnScore: '--',
+      notes: 'Active EEG monitoring session. Real SNN arousal classification and band powers recorded live during stream or file analysis.'
+    }
+  };
 };
 
 export default function ProgressCalendar() {
@@ -225,58 +171,81 @@ export default function ProgressCalendar() {
     snnScore: '--',
     notes: 'Upcoming date — cognitive session logging will activate when this date arrives.'
   } : {
-    state: 'Neutral',
-    label: 'Rest Day',
-    avgBeta: 0.50,
-    avgAlpha: 0.50,
-    avgHeartRate: 72,
-    sessionHours: '0m',
+    state: 'No Session',
+    label: 'No Session Recorded',
+    avgBeta: 0,
+    avgAlpha: 0,
+    avgHeartRate: 0,
+    sessionHours: '--',
     stressSpikes: 0,
     breathingBreaks: 0,
-    snnScore: 90,
-    notes: 'No active cognitive session recorded for this past date.'
+    snnScore: '--',
+    notes: 'No active EEG session recorded for this date.'
   });
 
   const handleUpdateState = (newState) => {
     if (selectedIsFuture) return; // Block editing future dates
-    setProgressLogs(prev => ({
-      ...prev,
-      [selectedKey]: {
-        ...selectedLog,
-        state: newState,
-        label: newState === 'Stressed' ? 'Acute Stress / Crunch' : newState === 'Focused' ? 'Optimal Focus Session' : 'Baseline Rest'
+    setProgressLogs(prev => {
+      const updated = {
+        ...prev,
+        [selectedKey]: {
+          ...selectedLog,
+          state: newState,
+          label: newState === 'High Arousal' ? 'High Arousal Session' : newState === 'Low Arousal' ? 'Low Arousal Focus' : 'Baseline Rest'
+        }
+      };
+      try {
+        localStorage.setItem('snn_learning_sessions', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save session log:', e);
       }
-    }));
+      return updated;
+    });
   };
 
   const handleAddNote = (e) => {
     e.preventDefault();
     if (selectedIsFuture || !customNote.trim()) return;
-    setProgressLogs(prev => ({
-      ...prev,
-      [selectedKey]: {
-        ...selectedLog,
-        notes: customNote.trim()
+    setProgressLogs(prev => {
+      const updated = {
+        ...prev,
+        [selectedKey]: {
+          ...selectedLog,
+          notes: customNote.trim()
+        }
+      };
+      try {
+        localStorage.setItem('snn_learning_sessions', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save note:', e);
       }
-    }));
+      return updated;
+    });
     setCustomNote('');
   };
 
   // State color badges
   const getStateColorClass = (st) => {
     switch (st) {
-      case 'Stressed': return 'bg-red-500/20 text-red-700 border-red-500/40';
-      case 'Focused': return 'bg-blue-600/20 text-blue-700 border-blue-500/40';
-      case 'Neutral': return 'bg-slate-400/20 text-slate-700 border-slate-400/40';
-      case 'Upcoming': return 'bg-amber-500/20 text-amber-800 border-amber-500/40';
+      case 'High Arousal':
+      case 'Stressed': return 'bg-amber-500/20 text-amber-800 border-amber-500/40';
+      case 'Low Arousal':
+      case 'Focused': return 'bg-emerald-600/20 text-emerald-800 border-emerald-500/40';
+      case 'Active Session': return 'bg-blue-600/20 text-blue-800 border-blue-500/40';
+      case 'Upcoming': return 'bg-slate-300/40 text-slate-700 border-slate-300';
+      case 'No Session':
+      case 'Neutral':
       default: return 'bg-slate-400/20 text-slate-700 border-slate-400/40';
     }
   };
 
   const getDateDotClass = (st) => {
     switch (st) {
-      case 'Stressed': return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]';
-      case 'Focused': return 'bg-blue-600 shadow-[0_0_8px_rgba(0,98,255,0.6)]';
+      case 'High Arousal':
+      case 'Stressed': return 'bg-amber-500 shadow-[0_0_8px_rgba(217,119,6,0.6)]';
+      case 'Low Arousal':
+      case 'Focused': return 'bg-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.6)]';
+      case 'Active Session': return 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]';
       case 'Neutral': return 'bg-slate-400';
       default: return 'bg-transparent';
     }
@@ -446,20 +415,20 @@ export default function ProgressCalendar() {
           {/* Calendar Status Legend */}
           <div className="flex flex-wrap items-center justify-around gap-2 mt-4 pt-3 border-t border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] font-medium">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />
-              <span>Stressed (Red)</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(217,119,6,0.6)]" />
+              <span>High Arousal (Amber)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_6px_rgba(0,98,255,0.6)]" />
-              <span>Focused (Green)</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+              <span>Low Arousal (Green)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
-              <span>Neutral (Grey)</span>
+              <span>Baseline (Grey)</span>
             </div>
             <div className="flex items-center gap-1.5 font-semibold text-blue-700">
               <span className="w-3 h-3 rounded border-2 border-blue-500 bg-blue-50/40" />
-              <span>Current Session Outline</span>
+              <span>Active Session Outline</span>
             </div>
           </div>
         </div>
@@ -538,42 +507,42 @@ export default function ProgressCalendar() {
               <div className="flex items-center gap-2">
                 <button
                   disabled={selectedIsFuture}
-                  onClick={() => handleUpdateState('Stressed')}
+                  onClick={() => handleUpdateState('High Arousal')}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                     selectedIsFuture 
                       ? 'opacity-40 cursor-not-allowed bg-[var(--bg-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]'
-                      : selectedLog.state === 'Stressed'
-                        ? 'bg-red-500 text-white border-red-600 shadow-sm'
-                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-red-600 border-[var(--border-subtle)]'
+                      : (selectedLog.state === 'High Arousal' || selectedLog.state === 'Stressed')
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-amber-700 border-[var(--border-subtle)]'
                   }`}
                 >
-                  Stressed (Red)
+                  High Arousal (Amber)
                 </button>
                 <button
                   disabled={selectedIsFuture}
-                  onClick={() => handleUpdateState('Focused')}
+                  onClick={() => handleUpdateState('Low Arousal')}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                     selectedIsFuture 
                       ? 'opacity-40 cursor-not-allowed bg-[var(--bg-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]'
-                      : selectedLog.state === 'Focused'
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-blue-600 border-[var(--border-subtle)]'
+                      : (selectedLog.state === 'Low Arousal' || selectedLog.state === 'Focused')
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-emerald-700 border-[var(--border-subtle)]'
                   }`}
                 >
-                  Focused (Green)
+                  Low Arousal (Green)
                 </button>
                 <button
                   disabled={selectedIsFuture}
-                  onClick={() => handleUpdateState('Neutral')}
+                  onClick={() => handleUpdateState('Baseline')}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
                     selectedIsFuture 
                       ? 'opacity-40 cursor-not-allowed bg-[var(--bg-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]'
-                      : selectedLog.state === 'Neutral'
+                      : (selectedLog.state === 'Baseline' || selectedLog.state === 'Neutral' || selectedLog.state === 'No Session')
                         ? 'bg-slate-500 text-white border-slate-600 shadow-sm'
                         : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-slate-600 border-[var(--border-subtle)]'
                   }`}
                 >
-                  Neutral (Grey)
+                  Baseline (Grey)
                 </button>
               </div>
             </div>

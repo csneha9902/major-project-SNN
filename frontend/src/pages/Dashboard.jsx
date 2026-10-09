@@ -8,7 +8,6 @@ import WellnessTipsPanel from "../components/WellnessTipsPanel";
 import SessionSummaryPanel from "../components/SessionSummaryPanel";
 import ProgressCalendar from "../components/ProgressCalendar";
 import UserOnboardingHub from "../components/UserOnboardingHub";
-import EmployerWorkspaceDashboard from "../components/EmployerWorkspaceDashboard";
 import { useDataStream } from "../hooks/useDataStream";
 import { useAuth } from "../context/AuthContext";
 import GlowButton from "../components/ui/GlowButton";
@@ -48,11 +47,6 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState([]);
   const [hoveredState, setHoveredState] = useState(null);
   const [hoveredRecommendation, setHoveredRecommendation] = useState(null);
-
-  // If role is employer, render the clinical workspace
-  if (userRole === 'employer') {
-    return <EmployerWorkspaceDashboard onLogout={logout} />;
-  }
 
   // Load uploaded file analysis
   const loadAnalysis = async (id) => {
