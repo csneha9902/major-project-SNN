@@ -53,35 +53,34 @@ class SNNRecommender:
 
     def predict(self, state: str) -> int:
         """
-        Predicts a difficulty band (1-5) based on cognitive state.
-        state: "Focused", "Neutral", "Stressed"
-        Returns difficulty 1-5
+        Predict a difficulty band (1–5) from cognitive state via spike-count readout.
+
+        The network maps one-hot state input (Focused / Neutral / Stressed) to an
+        output neuron through two layers of LIF dynamics. The neuron with the highest
+        cumulative spike count wins. No hardcoded bias is injected — the output is
+        determined entirely by weight-induced dynamics.
+
+        Parameters
+        ----------
+        state : str — "Focused", "Neutral", or "Stressed".
+
+        Returns
+        -------
+        int : Difficulty level 1–5.
         """
-        # State mapping
         state_map = {"Focused": 0, "Neutral": 1, "Stressed": 2}
         idx = state_map.get(state, 1)
-        
-        # Constant rate coding over time
+
+        # One-hot constant-rate spike input
         x = np.zeros((self.time_steps, self.input_size))
-        x[:, idx] = 1.0  # Constant input spike
-        
+        x[:, idx] = 1.0
+
         out_spikes = self.forward(x)
-        # Sum spikes over time to determine most active output neuron
         spike_counts = out_spikes.sum(axis=0)
-        
-        # Add a small bias to guide untrained networks properly based on state,
-        # but the network logic still applies.
-        # Ideal: Focused -> 4/5, Neutral -> 3, Stressed -> 1/2
-        bias = np.zeros(self.output_size)
-        if state == "Focused":
-            bias[3] += 1
-        elif state == "Stressed":
-            bias[1] += 1
-        else:
-            bias[2] += 1
-            
-        best_idx = np.argmax(spike_counts + bias)
-        return int(best_idx + 1)  # Difficulty 1-5
+
+        # No additive bias — network weights determine outcome
+        best_idx = int(np.argmax(spike_counts))
+        return best_idx + 1  # Difficulty 1–5
 
     def save(self, path="results/snn/recommender_model.npz"):
         os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -348,8 +348,12 @@ async def get_feedback():
 
 @app.post("/feedback")
 async def post_feedback(req: FeedbackRequest):
-    update_q_table(req.state, req.task_index, req.reward)
-    return {"status": "success", "message": "Q-table updated"}
+    update_info = update_q_table(req.state, req.task_index, req.reward, req.next_state)
+    return {
+        "status": "success",
+        "message": "Q-table updated (Bellman TD)",
+        "update": update_info,
+    }
 from fastapi.responses import JSONResponse
 
 @app.get("/results/history")
