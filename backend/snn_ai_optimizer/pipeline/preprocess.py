@@ -15,10 +15,6 @@ from snn_ai_optimizer.datasets.eeg_loader import (
     preprocess_eeg,
 )
 
-import os
-
-ENABLE_MRI = os.environ.get("ENABLE_MRI", "false").lower() in ("true", "1")
-
 
 def main():
     """Simple entry: run full preprocess and mark status."""
@@ -68,21 +64,6 @@ def preprocess_run(run_path=None):
         save_text_log(run_path, f"[Preprocess] EEG preprocessing info: {e}")
         save_metrics(run_path, "preprocess_eeg", {"ok": False, "error": str(e)})
 
-    # ---------------- MRI (Decoupled per AGENTS.md Rule 13) ----------------
-    if ENABLE_MRI:
-        try:
-            from snn_ai_optimizer.datasets.mri_loader import load_sample_mri, preprocess_mri
-            img = load_sample_mri()
-            mri_feats = preprocess_mri(img)
-            (out_dir / "mri_features.json").write_text(
-                json.dumps({"features": mri_feats}, indent=2),
-                encoding="utf-8",
-            )
-            save_text_log(run_path, f"[Preprocess] MRI features saved ({len(mri_feats)} dims)")
-            save_metrics(run_path, "preprocess_mri", {"dims": len(mri_feats), "ok": True})
-        except Exception as e:
-            save_text_log(run_path, f"[Preprocess] MRI failed: {e}")
-            save_metrics(run_path, "preprocess_mri", {"ok": False, "error": str(e)})
 
     # Final status log
     save_text_log(

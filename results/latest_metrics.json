@@ -1,6 +1,7 @@
 {
   "snn": {
-    "accuracy": 0.92,
-    "auc": 0.95
+    "accuracy": 0.50,
+    "f1_macro": 0.495,
+    "auc": 0.529
   }
 }

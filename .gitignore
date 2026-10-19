@@ -9,6 +9,8 @@ backend/results/
 backend/uploads/
 mne_data/
 *.log
+*.db
+*.sqlite*
 
 # Environment variables and secrets
 .env
