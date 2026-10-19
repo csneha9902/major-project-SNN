@@ -1,0 +1,16 @@
+{
+  "svm_best_cv_f1": 0.4157913539588992,
+  "svm_best_c": 1.0,
+  "svm_held_out": {
+    "accuracy": 0.5666666666666667,
+    "f1_macro": 0.3617021276595745,
+    "auc": 0.43552036199095023,
+    "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.57      1.00      0.72        68\n LOW_AROUSAL       0.00      0.00      0.00        52\n\n    accuracy                           0.57       120\n   macro avg       0.28      0.50      0.36       120\nweighted avg       0.32      0.57      0.41       120\n"
+  },
+  "rf_held_out": {
+    "accuracy": 0.5333333333333333,
+    "f1_macro": 0.5248868778280543,
+    "auc": 0.4773755656108597,
+    "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.67      0.35      0.46        68\n LOW_AROUSAL       0.48      0.77      0.59        52\n\n    accuracy                           0.53       120\n   macro avg       0.57      0.56      0.52       120\nweighted avg       0.58      0.53      0.52       120\n"
+  }
+}

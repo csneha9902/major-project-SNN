@@ -1,0 +1,99 @@
+{
+  "run_timestamp_utc": "2026-10-19T05:47:53.813767+00:00",
+  "dataset": "DEAP",
+  "n_subjects_total": 12,
+  "label_definition": "arousal <= 5.0 \u2192 LOW_AROUSAL, arousal > 5.0 \u2192 HIGH_AROUSAL",
+  "preprocessing": {
+    "method": "Welch PSD band-power",
+    "bands": {
+      "delta": [
+        1.0,
+        4.0
+      ],
+      "theta": [
+        4.0,
+        8.0
+      ],
+      "alpha": [
+        8.0,
+        13.0
+      ],
+      "beta": [
+        13.0,
+        30.0
+      ]
+    },
+    "band_order": [
+      "delta",
+      "theta",
+      "alpha",
+      "beta"
+    ],
+    "n_channels": 32,
+    "n_features": 128,
+    "sampling_rate_hz": 128,
+    "welch_nperseg": 256,
+    "scaler": "StandardScaler (fitted on train only)"
+  },
+  "split": {
+    "method": "subject_wise (GroupShuffleSplit)",
+    "test_size": 0.25,
+    "random_seed": 42,
+    "train_subject_ids": [
+      "s02",
+      "s03",
+      "s05",
+      "s07",
+      "s08",
+      "s09",
+      "s11",
+      "s15",
+      "s25"
+    ],
+    "test_subject_ids": [
+      "s01",
+      "s16",
+      "s22"
+    ],
+    "n_train_subjects": 9,
+    "n_test_subjects": 3,
+    "n_train_trials": 360,
+    "n_test_trials": 120
+  },
+  "models": {
+    "svm": {
+      "kernel": "rbf",
+      "C_grid_searched": [
+        0.1,
+        1.0,
+        10.0
+      ],
+      "best_C": 1.0,
+      "cv_folds": 5,
+      "cv_scoring": "f1_macro",
+      "class_weight": "balanced",
+      "probability": true
+    },
+    "random_forest": {
+      "n_estimators": 200,
+      "max_features": "sqrt",
+      "class_weight": "balanced_subsample",
+      "random_state": 42
+    }
+  },
+  "evaluation": {
+    "partition": "held-out test set only",
+    "svm": {
+      "accuracy": 0.5666666666666667,
+      "f1_macro": 0.3617021276595745,
+      "auc": 0.43552036199095023,
+      "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.57      1.00      0.72        68\n LOW_AROUSAL       0.00      0.00      0.00        52\n\n    accuracy                           0.57       120\n   macro avg       0.28      0.50      0.36       120\nweighted avg       0.32      0.57      0.41       120\n"
+    },
+    "random_forest": {
+      "accuracy": 0.5333333333333333,
+      "f1_macro": 0.5248868778280543,
+      "auc": 0.4773755656108597,
+      "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.67      0.35      0.46        68\n LOW_AROUSAL       0.48      0.77      0.59        52\n\n    accuracy                           0.53       120\n   macro avg       0.57      0.56      0.52       120\nweighted avg       0.58      0.53      0.52       120\n"
+    }
+  }
+}

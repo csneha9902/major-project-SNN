@@ -87,7 +87,7 @@ def main():
 
     # 1. Validate environment
     try:
-        data_dir = get_deap_data_dir()
+        data_dir = Path(get_deap_data_dir())
         print(f"[Pipeline] DEAP dataset directory: {data_dir}")
         dat_files = list(data_dir.glob("s*.dat"))
         print(f"[Pipeline] Found {len(dat_files)} participant files in DEAP directory.")

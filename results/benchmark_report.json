@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-10-19T05:48:59Z",
+  "dataset": {
+    "name": "DEAP",
+    "directory": "/Users/sneha/Downloads/archive",
+    "n_subjects_found": 12
+  },
+  "timing": {
+    "baseline_seconds": 27.14,
+    "snn_seconds": 38.79,
+    "total_seconds": 65.93
+  },
+  "benchmarks": {
+    "svm_rbf": {
+      "accuracy": 0.5666666666666667,
+      "f1": 0.3617021276595745,
+      "auc": 0.43552036199095023
+    },
+    "random_forest": {
+      "accuracy": 0.5333333333333333,
+      "f1": 0.5248868778280543,
+      "auc": 0.4773755656108597
+    },
+    "deap_arousal_snn": {
+      "accuracy": 0.5,
+      "f1": 0.4949494949494949,
+      "auc": 0.5288461538461539
+    }
+  }
+}
