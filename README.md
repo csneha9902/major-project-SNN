@@ -58,33 +58,53 @@ Built in strict compliance with the research integrity and provenance rules defi
 
 ## Test Suite Scorecard
 
-**86/86 Passing Unit & Integration Tests**
+**95/95 Passing Unit & Integration Tests**
 
 | Phase | Test File | Tests | Focus Area |
 |---|---|:---:|---|
 | Phase 1 | `test_deap_pipeline.py` | 13 | DEAP loader, arousal labeling, subject-wise split |
-| Phase 2 | `test_baseline_pipeline.py` | 13 | Welch PSD 128 features, SVM RBF grid search, Random Forest |
-| Phase 3 | `test_snn_pipeline.py` | 13 | Multi-step LIF dynamics, Poisson encoding, held-out SNN eval |
-| Phase 4 | `test_snn_inference.py` | 13 | SNN singleton engine, 128-dim inference, EDF windowing |
+| Phase 2 | `test_baseline_pipeline.py` | 17 | Welch PSD 128 features, sliding-window segmentation, SVM RBF, Random Forest |
+| Phase 3 | `test_snn_pipeline.py` | 15 | Multi-step LIF dynamics, forward_with_traces, Poisson encoding, held-out SNN eval |
+| Phase 4 | `test_snn_inference.py` | 14 | SNN singleton engine, 128-dim inference, get_neuromorphic_traces |
 | Phase 5 | `test_q_learning.py` | 17 | Bellman TD equation, $s \to s'$, $\epsilon$-decay, persistence |
-| Phase 6 | `test_api_integration.py` | 12 | `/api/recommend`, `/feedback` TD stats, `/api/benchmark` |
+| Phase 6 | `test_api_integration.py` | 14 | `/api/recommend`, `/feedback` TD stats, `/api/benchmark`, `/neuromorphic-traces` |
 | Phase 8 | `test_reproducibility.py` | 5 | Invariant checks, zero leakage, experiment provenance |
-| **Total** | | **86** | **All Passing** ✅ |
+| **Total** | | **95** | **All Passing** ✅ |
 
 ---
 
-## Quick Start
+## ⚡ 1-Click Launch (For Teammates & Evaluators)
+
+To run the entire system (FastAPI backend on port 8000 and React frontend on port 5173) in one single command:
+
+```bash
+git clone https://github.com/csneha9902/major-project-SNN.git
+cd major-project-SNN
+pip install -r requirements.txt
+./run.sh
+```
+
+`./run.sh` automatically checks dependencies, cleans up ports, starts both servers, and opens the **Dual-Portal Landing Page** in your browser at `http://localhost:5173/`.
+
+### Interactive Portals Available:
+* **Dual-Portal Landing Page**: [http://localhost:5173/](http://localhost:5173/)
+* **Academic Research & Benchmark Lab**: [http://localhost:5173/research](http://localhost:5173/research)
+* **Clinical Neuro-Monitoring Hub**: [http://localhost:5173/dashboard](http://localhost:5173/dashboard)
+* **Interactive API Documentation**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+## Manual Step-by-Step Setup
 
 ### 1. Environment Setup
 ```bash
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 export DEAP_DATA_DIR="/path/to/local/deap"  # Contains s01.dat ... s32.dat
 ```
 
-### 2. Run All Tests
+### 2. Run All Tests (95/95 Passing)
 ```bash
-cd backend
-python3 -m pytest tests/ -v --tb=short
+MNE_DONTWRITE_HOME=true python3 -m pytest backend/tests/ -v --tb=short
 ```
 
 ### 3. Verify Research Integrity
@@ -94,14 +114,14 @@ python3 scripts/verify_research_integrity.py
 
 ### 4. Run End-to-End Pipeline
 ```bash
-python3 scripts/run_research_pipeline.py --epochs 30 --seed 42
+python3 scripts/run_research_pipeline.py --windowed --epochs 30 --seed 42
 ```
 
-### 5. Launch Application
+### 5. Launch Servers Separately
 ```bash
 # Terminal 1: Backend API
 cd backend
-uvicorn snn_ai_optimizer.app:app --reload --port 8000
+python3 -m uvicorn snn_ai_optimizer.app:app --reload --port 8000
 
 # Terminal 2: React Frontend
 cd frontend
