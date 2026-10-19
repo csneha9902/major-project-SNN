@@ -1,30 +1,11 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-import datetime, json, asyncio, os, random, time, uuid, shutil
-
-# Auth imports - with error handling
-try:
-    from snn_ai_optimizer.auth import get_oauth_router
-    from snn_ai_optimizer.auth.jwt_utils import get_current_user
-    AUTH_AVAILABLE = True
-except Exception as e:
-    print(f"Warning: Auth module import failed: {e}")
-    AUTH_AVAILABLE = False
-    # Create dummy functions
-    def get_oauth_router():
-        from fastapi import APIRouter
-        return APIRouter(prefix="/auth", tags=["auth"])
-    def get_current_user():
-        from fastapi import Depends, HTTPException, status
-        from fastapi.security import HTTPBearer
-        security = HTTPBearer(auto_error=False)
-        async def _get_user(credentials = None):
-            # Allow unauthenticated access for now
-            return {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
-        return Depends(_get_user)
+from typing import Optional
+from pydantic import BaseModel, Field
+import datetime, json, asyncio, os, random, time, uuid
 
 # Upload imports
 from snn_ai_optimizer.upload import process_edf_file
@@ -37,125 +18,60 @@ except Exception:
 # Analysis imports
 from snn_ai_optimizer.analysis import analyze_uploaded_data
 
-# Export imports
-from snn_ai_optimizer.export import generate_pdf_report
+# Pipeline & Optimizer imports
+from snn_ai_optimizer.pipeline.preprocess import preprocess_run
+from snn_ai_optimizer.pipeline.baseline import train_baseline
+from snn_ai_optimizer.pipeline.snn_pipeline import snn_run
+from snn_ai_optimizer.feedback import generate_feedback
+from snn_ai_optimizer.optimizer import update_q_table, recommend_task, _current_epsilon, _load_q_table
+from snn_ai_optimizer.streaming import DataStreamer
+from snn_ai_optimizer.utils.wellness_tips import get_random_tip
+from snn_ai_optimizer.utils.session_tracker import SessionTracker
 
 # ------------------ FastAPI App ------------------
-app = FastAPI()
+app = FastAPI(title="EEG-SNN Adaptive Learning Optimizer")
 
-# Initialize database
-try:
-    from snn_ai_optimizer.db.init_db import init_db
-    init_db()
-    print("Database initialized successfully")
-except Exception as e:
-    print(f"Warning: Database initialization failed: {e}")
-
-# Include OAuth router (with comprehensive error handling)
-try:
-    if AUTH_AVAILABLE:
-        app.include_router(get_oauth_router())
-    else:
-        raise ImportError("Auth module not available")
-except Exception as e:
-    import traceback
-    print(f"WARNING: Failed to include OAuth router: {e}")
-    traceback.print_exc()
-    # Create a minimal fallback auth router that always works
-    from fastapi import APIRouter
-    from fastapi.responses import RedirectResponse
-    auth_router = APIRouter(prefix="/auth", tags=["auth"])
-    
-    def _create_demo_token():
-        """Helper to create demo token with fallbacks."""
-        try:
-            from snn_ai_optimizer.auth.jwt_utils import create_access_token
-            token_data = {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
-            return create_access_token(token_data)
-        except ImportError:
-            try:
-                from jose import jwt
-                import datetime
-                SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production-min-32-chars")
-                token_data = {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor", "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
-                return jwt.encode(token_data, SECRET_KEY, algorithm="HS256")
-            except ImportError:
-                # Last resort - return a simple demo token string
-                return "demo_token_demo@doctor.com"
-    
-    @auth_router.get("/login")
-    async def fallback_login():
-        """Fallback login when OAuth router fails to load."""
-        token = _create_demo_token()
-        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-        return RedirectResponse(url=f"{frontend_url}/auth/callback?token={token}")
-    
-    @auth_router.get("/callback")
-    async def fallback_callback():
-        """Fallback callback."""
-        token = _create_demo_token()
-        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-        return RedirectResponse(url=f"{frontend_url}/auth/callback?token={token}")
-    
-    @auth_router.get("/me")
-    async def fallback_me():
-        """Fallback /auth/me endpoint."""
-        return {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor"}
-    
-    app.include_router(auth_router)
-
-# Include SNN Router
+# Include Core SNN Router
 try:
     from snn_ai_optimizer.snn.api import router as snn_router
     app.include_router(snn_router)
 except Exception as e:
-    print(f"Warning: SNN module import failed: {e}")
+    print(f"Warning: SNN API module import failed: {e}")
 
-# Include Patient Router (mounted under /api so frontend /api/patients/ calls work)
-try:
-    from snn_ai_optimizer.patient.router import router as patient_router
-    app.include_router(patient_router, prefix="/api")
-    print("Patient router included successfully at /api/patients/")
-except Exception as e:
-    print(f"Warning: Patient router import failed: {e}")
-
-# Include Appointment Router
-try:
-    from snn_ai_optimizer.appointment.router import router as appointment_router
-    app.include_router(appointment_router, prefix="/api")
-    print("Appointment router included successfully at /api/appointments/")
-except Exception as e:
-    print(f"Warning: Appointment router import failed: {e}")
-
-# Include Collaboration Router
-try:
-    from snn_ai_optimizer.collaboration.router import router as collaboration_router
-    app.include_router(collaboration_router, prefix="/api")
-    print("Collaboration router included successfully at /api/collaboration/")
-except Exception as e:
-    print(f"Warning: Collaboration router import failed: {e}")
-
-# Include Mail Router
-try:
-    from snn_ai_optimizer.mail.router import router as mail_router
-    app.include_router(mail_router, prefix="/api")
-    print("Mail router included successfully at /api/mail/")
-except Exception as e:
-    print(f"Warning: Mail router import failed: {e}")
-
-# CORS (allow frontend at :5173 to access backend)
+# CORS configuration
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # in prod, restrict to http://localhost:5173 or deployed frontend
-    allow_credentials=True,  # Changed to True for OAuth cookies
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ------------------ Researcher Auth Context ------------------
+def get_current_user_optional() -> dict:
+    """Provides a consistent researcher identity without hospital EMR dependencies."""
+    return {
+        "sub": "researcher@eeg-snn.edu",
+        "email": "researcher@eeg-snn.edu",
+        "name": "EEG SNN Researcher",
+        "role": "researcher",
+        "user_id": "researcher-01",
+        "username": "researcher"
+    }
+
+@app.get("/auth/me")
+async def get_me_endpoint():
+    """Returns the authenticated researcher identity."""
+    return get_current_user_optional()
+
+# ------------------ Basic Routes ------------------
+@app.get("/")
+async def root():
+    return {"message": "SNN-AI Optimizer Backend running (Research Mode)"}
+
 # ------------------ Mock Web EEG Endpoint ------------------
 _mock_rng = random.Random(314159)
-
 
 def _mock_eeg_sample(mode: str = "Neutral") -> dict:
     base_alpha = 0.55 + _mock_rng.gauss(0, 0.03)
@@ -183,63 +99,15 @@ def _mock_eeg_sample(mode: str = "Neutral") -> dict:
         "mode": mode,
     }
 
-
 @app.get("/mock/eeg")
 async def mock_eeg(mode: str = "Neutral"):
     """Return a synthetic EEG/HRV sample to simulate a web feed."""
     return _mock_eeg_sample(mode)
 
-
-# ------------------ Basic Routes ------------------
-@app.get("/")
-async def root():
-    return {"message": "SNN-AI Optimizer Backend running"}
-
-
-@app.get("/auth/me")
-async def get_me_endpoint(request: Request):
-    """
-    Returns the currently authenticated user from JWT Bearer token.
-    Falls back to demo user if no valid token is provided.
-    """
-    from snn_ai_optimizer.auth.jwt_utils import verify_token
-    from snn_ai_optimizer.db.session import SessionLocal
-    from snn_ai_optimizer.db.models import User as DBUser
-
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Not authenticated"}
-        )
-
-    token = auth_header.split(" ", 1)[1]
-    try:
-        payload = verify_token(token)
-        email = payload.get("sub") or payload.get("email")
-        db = SessionLocal()
-        try:
-            user = db.query(DBUser).filter(DBUser.email == email).first()
-        finally:
-            db.close()
-
-        if user:
-            return {
-                "sub": user.email,
-                "email": user.email,
-                "name": user.full_name,
-                "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-                "user_id": user.user_id,
-                "username": user.username,
-            }
-        # Token valid but user not in DB — return payload directly
-        return payload
-    except Exception:
-        return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
-
+# ------------------ Metrics & Evaluation ------------------
 @app.get("/results/metrics")
 async def get_metrics():
-    """Return baseline + hybrid metrics if available"""
+    """Return baseline + SNN evaluation metrics from held-out test sets."""
     def read_json(p: Path):
         try:
             return json.loads(p.read_text(encoding="utf-8"))
@@ -262,11 +130,89 @@ async def get_metrics():
         return JSONResponse({"error": "No metrics found"}, status_code=404)
     return out
 
+@app.get("/api/benchmark/summary")
+async def get_benchmark_summary():
+    """
+    Returns real held-out evaluation metrics from baseline and SNN pipelines.
+    Never fabricates metrics: returns null for missing models (AGENTS.md Rules 1 & 2).
+    """
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    
+    def _resolve_results_path(*parts: str) -> Optional[Path]:
+        p1 = repo_root / "results" / Path(*parts)
+        if p1.exists():
+            return p1
+        p2 = Path("results") / Path(*parts)
+        if p2.exists():
+            return p2
+        return None
+
+    baseline_path = _resolve_results_path("baseline", "metrics.json")
+    snn_path = _resolve_results_path("snn", "metrics.json")
+    report_path = _resolve_results_path("benchmark_report.json")
+
+    baseline_metrics = None
+    snn_metrics = None
+    report_data = None
+
+    if baseline_path and baseline_path.exists():
+        try:
+            baseline_metrics = json.loads(baseline_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if snn_path and snn_path.exists():
+        try:
+            snn_metrics = json.loads(snn_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if report_path and report_path.exists():
+        try:
+            report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "baseline": baseline_metrics,
+        "snn": snn_metrics,
+        "report": report_data,
+        "has_baseline": baseline_metrics is not None,
+        "has_snn": snn_metrics is not None,
+        "has_report": report_data is not None,
+    }
+
+@app.get("/results/history")
+async def get_history():
+    """History of evaluation runs. Clean empty list when absent — never fabricated."""
+    p = Path("results/history/metrics_log.json")
+    if not p.exists():
+        return {"runs": []}
+    try:
+        arr = json.loads(p.read_text(encoding="utf-8"))
+        runs = []
+        for snap in arr:
+            ts = snap.get("ts", "?")
+            row = {"ts": ts}
+            if "baseline" in snap: row["baseline"] = snap["baseline"]
+            snn_data = snap.get("snn") or snap.get("hybrid")
+            if snn_data: row["snn"] = snn_data
+            if "preprocess" in snap: row["preprocess"] = snap["preprocess"]
+            if "preprocess_eeg" in snap: row["preprocess_eeg"] = snap["preprocess_eeg"]
+            runs.append(row)
+        return {"runs": runs[-100:]}
+    except Exception:
+        return JSONResponse({"runs": []})
+
+# Static files for download
+os.makedirs("results", exist_ok=True)
+app.mount("/files", StaticFiles(directory="results", html=False), name="files")
+
 # ------------------ WebSocket (logs) ------------------
 active_clients = []
 
 async def broadcast(message: str):
-    """Send log message to all WebSocket clients"""
+    """Send log message to all WebSocket clients."""
     for ws in list(active_clients):
         try:
             await ws.send_text(message)
@@ -283,24 +229,19 @@ async def websocket_endpoint(ws: WebSocket):
     await ws.send_text("Connected to SNN-AI WebSocket")
     try:
         while True:
-            await ws.receive_text()  # keep alive
+            await ws.receive_text()
     except WebSocketDisconnect:
         if ws in active_clients:
             active_clients.remove(ws)
 
 # ------------------ Pipeline Trigger ------------------
-from snn_ai_optimizer.pipeline.preprocess import preprocess_run
-from snn_ai_optimizer.pipeline.baseline import train_baseline
-from snn_ai_optimizer.pipeline.snn_pipeline import snn_run
-from snn_ai_optimizer.utils.wellness_tips import get_random_tip
-from snn_ai_optimizer.utils.session_tracker import SessionTracker
-
 @app.post("/run/pipeline")
 async def run_pipeline():
-    """Run preprocessing → baseline → hybrid, stream updates to WS + log file"""
+    """Run preprocessing → baseline → SNN pipeline with live updates."""
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = Path("results/logs"); log_file.mkdir(parents=True, exist_ok=True)
-    log_file = log_file / f"run_{run_id}.log"
+    log_dir = Path("results/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"run_{run_id}.log"
 
     def log(msg):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -312,7 +253,6 @@ async def run_pipeline():
     await broadcast("Starting pipeline...")
     log("Starting pipeline...")
 
-    # Offload blocking steps to threadpool to avoid blocking the event loop
     loop = asyncio.get_event_loop()
 
     await loop.run_in_executor(None, preprocess_run)
@@ -331,11 +271,8 @@ async def run_pipeline():
     log("Pipeline complete")
 
     return {"status": "Pipeline complete", "log_file": str(log_file)}
-from snn_ai_optimizer.feedback import generate_feedback
-from typing import Optional
-from pydantic import BaseModel, Field
-from snn_ai_optimizer.optimizer import update_q_table
 
+# ------------------ Q-Learning & Feedback ------------------
 class FeedbackRequest(BaseModel):
     state: str
     task_index: int = Field(default=0, alias="task_id")
@@ -348,57 +285,42 @@ async def get_feedback():
 
 @app.post("/feedback")
 async def post_feedback(req: FeedbackRequest):
-    update_q_table(req.state, req.task_index, req.reward)
-    return {"status": "success", "message": "Q-table updated"}
-from fastapi.responses import JSONResponse
+    update_info = update_q_table(req.state, req.task_index, req.reward, req.next_state)
+    return {
+        "status": "success",
+        "message": "Q-table updated (Bellman TD)",
+        "update": update_info,
+    }
 
-@app.get("/results/history")
-async def get_history():
-    p = Path("results/history/metrics_log.json")
-    if not p.exists():
-        # Provide a small default placeholder
-        return {"runs": [
-            {"ts": "T-2", "baseline": {"accuracy": 0.70, "auc": 0.72}, "snn": {"accuracy": 0.60, "auc": 0.62}},
-            {"ts": "T-1", "baseline": {"accuracy": 0.78, "auc": 0.80}, "snn": {"accuracy": 0.65, "auc": 0.67}},
-            {"ts": "T-0", "baseline": {"accuracy": 0.85, "auc": 0.90}, "snn": {"accuracy": 0.48, "auc": 0.49}},
-        ]}
-    try:
-        arr = json.loads(p.read_text(encoding="utf-8"))
-        # Fold snapshots by timestamp into combined rows for plotting
-        runs = []
-        acc = {}
-        for snap in arr:
-            ts = snap.get("ts", "?")
-            row = {"ts": ts}
-            if "baseline" in snap: row["baseline"] = snap["baseline"]
-            
-            # Map legacy hybrid data to snn for charting compatibility
-            snn_data = snap.get("snn") or snap.get("hybrid")
-            if snn_data: row["snn"] = snn_data
-            
-            if "preprocess" in snap: row["preprocess"] = snap["preprocess"]
-            if "preprocess_eeg" in snap: row["preprocess_eeg"] = snap["preprocess_eeg"]
-            if "preprocess_mri" in snap: row["preprocess_mri"] = snap["preprocess_mri"]
-            runs.append(row)
-        return {"runs": runs[-100:]}  # last 100
-    except Exception:
-        return JSONResponse({"runs": []})
-import os
-from fastapi.staticfiles import StaticFiles
+@app.get("/api/recommend")
+async def get_recommendation(state: str = "Neutral"):
+    """Returns an epsilon-greedy task recommendation from the Bellman Q-table."""
+    rec = recommend_task(state)
+    q_table = _load_q_table()
+    eps = _current_epsilon(q_table)
+    return {
+        **rec,
+        "epsilon": round(eps, 6),
+        "state": state,
+    }
 
-# Expose raw files so you can download exact artifacts:
-# e.g. http://localhost:8000/files/hybrid/metrics.json
-#      http://localhost:8000/files/history/metrics_log.json
-os.makedirs("results", exist_ok=True)
-app.mount("/files", StaticFiles(directory="results", html=False), name="files")
+@app.get("/api/qtable/state")
+async def get_qtable_state():
+    """Returns current state of the tabular Q-learning policy."""
+    q_table = _load_q_table()
+    meta = q_table.get("__meta__", {})
+    active_states = [s for s in q_table.keys() if s != "__meta__"]
+    return {
+        "states": active_states,
+        "n_updates": meta.get("n_updates", 0),
+        "epsilon": round(meta.get("epsilon", _current_epsilon(q_table)), 6),
+        "q_table": {k: v for k, v in q_table.items() if k != "__meta__"},
+    }
 
-# ------------------ Streaming API per dev_plan ------------------
-from snn_ai_optimizer.streaming import DataStreamer
-
+# ------------------ Streaming Telemetry ------------------
 streamer = DataStreamer()
 session_tracker = SessionTracker()
 
-# Link tracker to stream lifecycle via sim controls
 try:
     streamer.set_tracker(session_tracker)
 except Exception:
@@ -410,7 +332,6 @@ async def data_stream(ws: WebSocket):
     try:
         for frame in streamer.stream(interval_sec=1.5):
             await ws.send_text(json.dumps(frame))
-            # Yield control to event loop
             await asyncio.sleep(0)
     except WebSocketDisconnect:
         pass
@@ -419,7 +340,6 @@ async def data_stream(ws: WebSocket):
 async def snapshot():
     latest = streamer.get_latest()
     if latest is None:
-        # Generate one frame to initialize
         for frame in streamer.stream(interval_sec=0):
             break
         latest = streamer.get_latest()
@@ -448,7 +368,8 @@ async def get_status():
 
 @app.post("/api/sim/start")
 async def start_simulation():
-    session_tracker.reset(); session_tracker.start()
+    session_tracker.reset()
+    session_tracker.start()
     streamer.start_simulation()
     return {"ok": True, "running": streamer.running}
 
@@ -460,8 +381,6 @@ async def stop_simulation():
         pass
     streamer.stop_simulation()
     return {"ok": True, "running": streamer.running}
-
-# ------------------ New API (biometrics, tips, summary) ------------------
 
 @app.get("/api/biometric-details")
 async def get_biometric_details():
@@ -488,35 +407,11 @@ async def api_wellness_tip(state: str | None = None):
 async def api_session_summary():
     return session_tracker.generate_summary()
 
-# ------------------ File Upload & Analysis (Protected) ------------------
-
-# Store uploads temporarily
+# ------------------ File Upload & Offline Analysis ------------------
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 ANALYSIS_STORE = Path("results/analysis")
 ANALYSIS_STORE.mkdir(parents=True, exist_ok=True)
-
-# More forgiving auth dependency for upload endpoints
-_optional_security = HTTPBearer(auto_error=False)
-
-async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = Depends(_optional_security)) -> dict:
-    """Get current user, but fallback to demo user if token is missing/invalid."""
-    if credentials:
-        try:
-            if AUTH_AVAILABLE:
-                from snn_ai_optimizer.auth.jwt_utils import verify_token
-                payload = verify_token(credentials.credentials)
-                # Return a dict similar to what get_current_user would return for backward compatibility
-                return {
-                    "sub": payload.get("sub", "demo@doctor.com"),
-                    "email": payload.get("email", "demo@doctor.com"),
-                    "name": payload.get("name", "Demo Doctor"),
-                    "role": payload.get("role", "doctor")
-                }
-        except Exception:
-            pass
-    # Fallback to demo user if no credentials or validation fails
-    return {"sub": "demo@doctor.com", "email": "demo@doctor.com", "name": "Demo Doctor", "role": "doctor"}
 
 DEMO_MANIFEST_PATH = Path("results/demo_samples/manifest.json")
 
@@ -541,14 +436,13 @@ async def upload_file(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user_optional)
 ):
-    """Upload and process EDF or CSV file (protected endpoint)."""
+    """Upload and process EDF or CSV EEG recording."""
     lower_name = file.filename.lower()
     is_edf = lower_name.endswith(".edf")
     is_csv = lower_name.endswith(".csv")
     if not (is_edf or is_csv):
         raise HTTPException(status_code=400, detail="Only EDF or CSV files are supported")
 
-    # Check file size (200MB limit)
     MAX_SIZE = 200 * 1024 * 1024
     file_content = await file.read()
     if len(file_content) > MAX_SIZE:
@@ -558,11 +452,9 @@ async def upload_file(
     upload_path = UPLOAD_DIR / f"{upload_id}_{file.filename}"
 
     try:
-        # Save uploaded file
         with open(upload_path, "wb") as f:
             f.write(file_content)
 
-        # Process according to type
         if is_edf:
             analysis_data = process_edf_file(upload_path, upload_id)
         else:
@@ -570,18 +462,15 @@ async def upload_file(
                 raise HTTPException(status_code=500, detail="CSV processing not available on server")
             analysis_data = process_csv_file(upload_path, upload_id)
 
-        # Add metadata
-        analysis_data["uploaded_by"] = current_user.get("email", "unknown")
-        analysis_data["user_id"] = current_user.get("user_id", "unknown") if isinstance(current_user, dict) else getattr(current_user, 'user_id', 'unknown')
+        analysis_data["uploaded_by"] = current_user.get("email", "researcher@eeg-snn.edu")
+        analysis_data["user_id"] = current_user.get("user_id", "researcher-01")
         analysis_data["filename"] = file.filename
         analysis_data["uploaded_at"] = datetime.datetime.now().isoformat()
 
-        # Save analysis results
         analysis_file = ANALYSIS_STORE / f"{upload_id}.json"
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_data, f, indent=2)
 
-        # Clean up uploaded file after processing
         try:
             upload_path.unlink()
         except Exception:
@@ -594,15 +483,12 @@ async def upload_file(
             "n_samples": analysis_data["features"]["n_samples"],
             "duration": analysis_data["metadata"]["duration"],
         }
-
     except Exception as e:
-        # Clean up on error
         try:
             if upload_path.exists():
                 upload_path.unlink()
         except Exception:
             pass
-        # Surface FastAPI HTTPExceptions as-is
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
@@ -612,59 +498,16 @@ async def get_analysis(
     upload_id: str,
     current_user: dict = Depends(get_current_user_optional)
 ):
-    """Get extended analysis for uploaded file (protected endpoint)."""
+    """Retrieve signal decomposition and SNN state analysis for an uploaded file."""
     try:
         analysis_result = analyze_uploaded_data(upload_id)
-        # Add user info to the result for tracking
-        if isinstance(current_user, dict):
-            analysis_result["accessed_by"] = {
-                "user_id": current_user.get("user_id", "unknown"),
-                "email": current_user.get("email", "unknown"),
-                "role": current_user.get("role", "unknown")
-            }
-        else:
-            analysis_result["accessed_by"] = {
-                "user_id": getattr(current_user, 'user_id', 'unknown'),
-                "email": getattr(current_user, 'email', 'unknown'),
-                "role": getattr(current_user, 'role', 'unknown')
-            }
+        analysis_result["accessed_by"] = {
+            "user_id": current_user.get("user_id", "researcher-01"),
+            "email": current_user.get("email", "researcher@eeg-snn.edu"),
+            "role": current_user.get("role", "researcher")
+        }
         return analysis_result
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Analysis not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
-
-@app.get("/api/analysis/{upload_id}/export-pdf")
-async def export_pdf(
-    upload_id: str,
-    current_user: dict = Depends(get_current_user_optional)
-):
-    """Export analysis as PDF (protected endpoint)."""
-    try:
-        analysis_result = analyze_uploaded_data(upload_id)
-        # Add user info to the result for tracking
-        if isinstance(current_user, dict):
-            analysis_result["accessed_by"] = {
-                "user_id": current_user.get("user_id", "unknown"),
-                "email": current_user.get("email", "unknown"),
-                "role": current_user.get("role", "unknown")
-            }
-        else:
-            analysis_result["accessed_by"] = {
-                "user_id": getattr(current_user, 'user_id', 'unknown'),
-                "email": getattr(current_user, 'email', 'unknown'),
-                "role": getattr(current_user, 'role', 'unknown')
-            }
-        pdf_bytes = generate_pdf_report(analysis_result)
-
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="analysis_{upload_id}.pdf"'
-            }
-        )
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF generation error: {str(e)}")

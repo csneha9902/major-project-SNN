@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Upload, File, X, Sparkles, Activity } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import GlowButton from './ui/GlowButton';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -12,7 +11,7 @@ export default function FileUpload({ onUploadSuccess }) {
   const [error, setError] = useState('');
   const [demoSamples, setDemoSamples] = useState([]);
   const [loadingDemo, setLoadingDemo] = useState(false);
-  const { getAuthHeaders } = useAuth();
+  const getAuthHeaders = () => ({});
 
   useEffect(() => {
     fetchDemoSamples();

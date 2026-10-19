@@ -5,17 +5,17 @@ import {
   ComposedChart, LineChart, Line, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid,
 } from 'recharts';
-import { useAuth } from '../context/AuthContext';
 import FileUpload from '../components/FileUpload';
 import ChartTooltip from '../components/ui/ChartTooltip';
 import GlowButton from '../components/ui/GlowButton';
-import { Download, ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const COLORS = ['#16A34A', '#059669', '#15803D', '#22C55E', '#14532D'];
 
 const formatTimestamp = (ts) => {
+  if (!ts) return '00:00';
   if (ts > 1000000000) {
     return new Date(ts * 1000).toLocaleTimeString();
   }
@@ -27,7 +27,7 @@ const formatTimestamp = (ts) => {
 export default function AnalysisView() {
   const { uploadId } = useParams();
   const navigate = useNavigate();
-  const { getAuthHeaders } = useAuth();
+  const getAuthHeaders = () => ({});
   const [analysisData, setAnalysisData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -63,29 +63,6 @@ export default function AnalysisView() {
     }
   };
 
-  const handleExportPDF = async () => {
-    if (!uploadId) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/analysis/${uploadId}/export-pdf`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || 'Failed to generate PDF');
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `analysis_${uploadId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Failed to export PDF: ' + err.message);
-    }
-  };
 
   const timeSeries = analysisData?.time_series || [];
   const extended = analysisData?.extended_analysis || {};
@@ -199,12 +176,6 @@ export default function AnalysisView() {
           <h1 className="font-heading font-bold">
             File Analysis: {analysisData.filename || 'EDF File'}
           </h1>
-          {uploadId && (
-            <GlowButton variant="success" onClick={handleExportPDF}>
-              <Download size={18} />
-              Export PDF
-            </GlowButton>
-          )}
         </div>
 
         <div className="analysis-content stagger-children">

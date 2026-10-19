@@ -8,12 +8,10 @@ import WellnessTipsPanel from "../components/WellnessTipsPanel";
 import SessionSummaryPanel from "../components/SessionSummaryPanel";
 import ProgressCalendar from "../components/ProgressCalendar";
 import UserOnboardingHub from "../components/UserOnboardingHub";
-import EmployerWorkspaceDashboard from "../components/EmployerWorkspaceDashboard";
 import { useDataStream } from "../hooks/useDataStream";
-import { useAuth } from "../context/AuthContext";
+import SNNSpikeRasterVisualizer from "../components/SNNSpikeRasterVisualizer";
 import GlowButton from "../components/ui/GlowButton";
-import EmailReportModal from "../components/EmailReportModal";
-import { Download, Sparkles, Activity, FileText, CheckCircle2, RotateCcw, Mail } from "lucide-react";
+import { Sparkles, Activity, FileText, CheckCircle2, RotateCcw, Zap } from "lucide-react";
 import "../App.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -28,51 +26,28 @@ const formatTimestamp = (ts) => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const getRecommendationForState = (state, beta = 1.0, alpha = 0.5) => {
-  if (state === 'Stressed' || (beta - alpha > 0.4)) {
-    return {
-      task: "Take 5-min Breathing Break & Lower Task Difficulty",
-      difficulty: 1,
-      reasoning: "High SNN cognitive stress detected: elevated beta frequency. Lowering workload prevents mental exhaustion."
-    };
-  } else if (state === 'Focused' || (alpha - beta > 0.1)) {
-    return {
-      task: "Deep Concentration: Attempt High-Complexity Problems",
-      difficulty: 4,
-      reasoning: "Optimal neural synchronization detected: dominant alpha rhythm indicates high focus and readiness for complex learning."
-    };
-  }
-  return {
-    task: "Maintain Steady Pace: Review Chapter 3 Concept Check",
-    difficulty: 3,
-    reasoning: "Balanced baseline cognitive state: steady alpha-to-beta ratio maintains optimal sustained attention."
-  };
-};
-
 export default function Dashboard() {
   const { frame, running, startSimulation, stopSimulation } = useDataStream();
-  const { user, logout, getAuthHeaders } = useAuth();
   const navigate = useNavigate();
+  const user = { name: "EEG SNN Researcher", role: "researcher" };
+  const logout = () => navigate("/");
+  const getAuthHeaders = () => ({});
 
-  const userRole = localStorage.getItem('user_role') || 'employer';
+  const userRole = localStorage.getItem('user_role') || 'researcher';
 
   // Data Source mode: 'none' | 'file' | 'stream'
   const [dataSource, setDataSource] = useState('none');
+  const [backendRec, setBackendRec] = useState(null);
   const [uploadId, setUploadId] = useState(null);
   const [sourceMetadata, setSourceMetadata] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   // Active chart & state data
   const [chartData, setChartData] = useState([]);
   const [hoveredState, setHoveredState] = useState(null);
   const [hoveredRecommendation, setHoveredRecommendation] = useState(null);
-
-  // If role is employer, render the clinical workspace
-  if (userRole === 'employer') {
-    return <EmployerWorkspaceDashboard onLogout={logout} />;
-  }
+  const [showNeuromorphicRaster, setShowNeuromorphicRaster] = useState(true);
 
   // Load uploaded file analysis
   const loadAnalysis = async (id) => {
@@ -99,7 +74,7 @@ export default function Dashboard() {
           beta: Number(t.beta.toFixed(2)),
           heartRate: Math.round(t.heart_rate || 75),
           cognitive_state: t.cognitive_state || 'Neutral',
-          recommendation: getRecommendationForState(t.cognitive_state, t.beta, t.alpha)
+          recommendation: t.recommendation || null,
         }));
         setChartData(points);
       }
@@ -147,7 +122,7 @@ export default function Dashboard() {
           beta: frame?.eeg?.beta ?? 0.5,
           heartRate: frame?.hrv?.heart_rate_bpm ?? 75,
           cognitive_state: frame?.cognitive_state || "Neutral",
-          recommendation: frame?.recommendation || getRecommendationForState(frame?.cognitive_state),
+          recommendation: frame?.recommendation || null,
         };
         const next = [...prev, newRow];
         return next.slice(-60);
@@ -155,27 +130,6 @@ export default function Dashboard() {
     }
   }, [frame, running, dataSource]);
 
-  // Export PDF handler
-  const handleExportPDF = async () => {
-    if (!uploadId) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/analysis/${uploadId}/export-pdf`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error('Failed to generate PDF');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `cognitive_analysis_${uploadId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Failed to export PDF: ' + err.message);
-    }
-  };
 
   // Calculate current live/file metrics
   const lastPoint = chartData[chartData.length - 1];
@@ -195,11 +149,31 @@ export default function Dashboard() {
 
   const dominantState = analysisData?.extended_analysis?.patterns?.dominant_state;
   const displayState = hoveredState || (dataSource === 'stream' ? frame?.cognitive_state : dominantState) || lastPoint?.cognitive_state || 'Neutral';
-  
+
+  // Dynamic fetch of Q-table recommendation if not in frame
+  useEffect(() => {
+    let active = true;
+    const fetchRec = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/recommend?state=${encodeURIComponent(displayState)}`);
+        if (res.ok && active) {
+          const rec = await res.json();
+          setBackendRec(rec);
+        }
+      } catch (e) {
+        // Graceful silent fallback
+      }
+    };
+    if (!frame?.recommendation && !lastPoint?.recommendation) {
+      fetchRec();
+    }
+    return () => { active = false; };
+  }, [displayState, frame?.recommendation, lastPoint?.recommendation]);
+
   const displayRecommendation = hoveredRecommendation || 
     (dataSource === 'stream' ? frame?.recommendation : null) || 
     lastPoint?.recommendation || 
-    getRecommendationForState(displayState, currentMetrics.beta, currentMetrics.alpha);
+    backendRec;
 
   return (
     <div className="app-container">
@@ -226,6 +200,27 @@ export default function Dashboard() {
       {/* STATE 2 & 3: File or Live Stream Data Active -> Show Full Dashboard */}
       {dataSource !== 'none' && (
         <div className="animate-fade-in">
+          {/* Explicit DEMO MODE Warning Banner per AGENTS.md Rule 4 */}
+          {dataSource === 'stream' && (
+            <div className="demo-mode-banner p-3.5 rounded-xl mb-5 bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white text-[0.68rem] tracking-wider uppercase shadow-xs">
+                  DEMO MODE
+                </span>
+                <span className="font-medium text-slate-700">
+                  Live stream uses synthetic EEG telemetry for interactive demonstration. Not evaluated on held-out research subjects.
+                </span>
+              </div>
+              {frame?.snn_inference && (
+                <div className="flex items-center gap-2 font-mono text-[0.7rem] bg-white/90 px-2.5 py-1 rounded-lg border border-amber-300/80 shadow-xs">
+                  <span className="text-slate-600">SNN Arousal:</span>
+                  <strong className="text-amber-800">{frame.snn_inference.arousal_label}</strong>
+                  <span className="text-slate-500">({Math.round((frame.snn_inference.confidence || 0) * 100)}% conf)</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* File Analysis Action Banner if file is active */}
           {dataSource === 'file' && (
             <div className="file-active-banner p-4 rounded-xl mb-6 bg-blue-50/80 border border-blue-200 flex flex-wrap items-center justify-between gap-4">
@@ -234,23 +229,20 @@ export default function Dashboard() {
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h4 className="font-heading font-bold text-sm text-[var(--text-primary)]">
-                    Analyzing Recording: <span className="font-mono text-blue-700">{sourceMetadata?.filename}</span>
-                  </h4>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h4 className="font-heading font-bold text-sm text-[var(--text-primary)]">
+                      Analyzing Recording: <span className="font-mono text-blue-700">{sourceMetadata?.filename}</span>
+                    </h4>
+                    <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      RESEARCH MODE — 128-CH SNN
+                    </span>
+                  </div>
                   <p className="text-xs text-[var(--text-secondary)]">
                     Full SNN cognitive decomposition complete • {chartData.length} samples processed
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <GlowButton variant="cyan" onClick={() => setEmailModalOpen(true)} className="text-xs py-2 px-3">
-                  <Mail size={14} />
-                  <span>Email Report</span>
-                </GlowButton>
-                <GlowButton variant="success" onClick={handleExportPDF} className="text-xs py-2 px-3">
-                  <Download size={14} />
-                  <span>Download PDF</span>
-                </GlowButton>
                 <GlowButton variant="ghost" onClick={handleSwitchSource} className="text-xs py-2 px-3">
                   <RotateCcw size={14} />
                   <span>Upload Different File</span>
@@ -259,14 +251,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Email Report Modal */}
-          <EmailReportModal
-            isOpen={emailModalOpen}
-            onClose={() => setEmailModalOpen(false)}
-            uploadId={uploadId}
-            filename={sourceMetadata?.filename}
-            defaultRecipientName={user?.name || "Patient"}
-          />
 
           <div className="main-content">
             <div className="left-section">
@@ -287,9 +271,37 @@ export default function Dashboard() {
             </div>
 
             <div className="right-section">
-              <TaskRecommendationCard recommendation={displayRecommendation} />
+              <TaskRecommendationCard 
+                recommendation={displayRecommendation} 
+                currentState={displayState}
+                nextState={displayState}
+              />
               <SessionSummaryPanel isRunning={running} />
             </div>
+          </div>
+
+          {/* Interactive SNN Neuromorphic Spike Raster & Membrane Potential Section */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setShowNeuromorphicRaster(!showNeuromorphicRaster)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold font-mono tracking-wide bg-cyan-950/5 hover:bg-cyan-900/10 text-cyan-900 border border-cyan-300/80 shadow-xs transition-all"
+              >
+                <Zap size={14} className={showNeuromorphicRaster ? "text-cyan-600 fill-cyan-500/20" : "text-slate-400"} />
+                <span>⚡ NEUROMORPHIC SPIKE DYNAMICS: {showNeuromorphicRaster ? "EXPANDED" : "COLLAPSED"}</span>
+              </button>
+              <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+                SpikingJelly LIF Multi-Step • T=50 Raster Grid & Membrane V(t)
+              </span>
+            </div>
+
+            {showNeuromorphicRaster && (
+              <SNNSpikeRasterVisualizer 
+                currentMetrics={currentMetrics} 
+                isLiveStreaming={running && dataSource === 'stream'} 
+              />
+            )}
           </div>
 
           {/* Dynamic Progress & Health Calendar Keeper */}

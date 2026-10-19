@@ -1,0 +1,105 @@
+{
+  "run_timestamp_utc": "2026-10-19T10:03:28.738094+00:00",
+  "dataset": "DEAP",
+  "n_subjects_total": 12,
+  "label_definition": "arousal <= 5.0 -> LOW_AROUSAL, arousal > 5.0 -> HIGH_AROUSAL",
+  "preprocessing": {
+    "feature_extraction": "Welch PSD band-power (4 bands x 32 channels)",
+    "n_features": 128,
+    "bands": {
+      "delta": [
+        1.0,
+        4.0
+      ],
+      "theta": [
+        4.0,
+        8.0
+      ],
+      "alpha": [
+        8.0,
+        13.0
+      ],
+      "beta": [
+        13.0,
+        30.0
+      ]
+    },
+    "band_order": [
+      "delta",
+      "theta",
+      "alpha",
+      "beta"
+    ],
+    "sampling_rate_hz": 128,
+    "scaler": "StandardScaler + MinMaxScaler -> [0, 1] (fitted on train only)",
+    "encoding": "Poisson rate coding, T=50 time-steps",
+    "segmentation": {
+      "use_windowing": true,
+      "window_sec": 4.0,
+      "step_sec": 2.0,
+      "n_windows_per_trial": 29,
+      "n_train_samples": 10440,
+      "n_test_samples": 3480
+    }
+  },
+  "split": {
+    "method": "subject_wise (GroupShuffleSplit)",
+    "test_size": 0.25,
+    "random_seed": 42,
+    "train_subject_ids": [
+      "s02",
+      "s03",
+      "s05",
+      "s07",
+      "s08",
+      "s09",
+      "s11",
+      "s15",
+      "s25"
+    ],
+    "test_subject_ids": [
+      "s01",
+      "s16",
+      "s22"
+    ],
+    "n_train_subjects": 9,
+    "n_test_subjects": 3,
+    "n_train_trials": 360,
+    "n_test_trials": 120
+  },
+  "model_config": {
+    "class": "DEAPArousalSNN",
+    "layers": [
+      128,
+      256,
+      128,
+      2
+    ],
+    "surrogate": "ATan",
+    "step_mode": "m",
+    "time_steps": 50
+  },
+  "training": {
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "epochs": 10,
+    "batch_size": 32,
+    "final_train_loss": 0.6626136652354536,
+    "final_train_acc": 0.6098659003831418
+  },
+  "evaluation": {
+    "partition": "held-out test set only",
+    "metrics": {
+      "accuracy": 0.525,
+      "f1_macro": 0.5247425217734638,
+      "auc": 0.5469754615007989,
+      "classification_report": "              precision    recall  f1-score   support\n\n LOW_AROUSAL       0.46      0.58      0.51      1508\nHIGH_AROUSAL       0.60      0.48      0.54      1972\n\n    accuracy                           0.53      3480\n   macro avg       0.53      0.53      0.52      3480\nweighted avg       0.54      0.53      0.53      3480\n",
+      "use_windowing": true,
+      "n_windows_per_trial": 29,
+      "n_train_samples": 10440,
+      "n_test_samples": 3480,
+      "trial_accuracy": 0.5416666666666666,
+      "trial_f1_macro": 0.5401017350707268
+    }
+  }
+}

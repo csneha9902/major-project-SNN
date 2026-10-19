@@ -125,28 +125,82 @@ class EDFProcessor:
 
         return self.features
 
+    def extract_windowed_128_features(self, window_sec: float = 2.0) -> np.ndarray:
+        """
+        Extract 128 Welch PSD band-power features across temporal windows.
+
+        Returns
+        -------
+        ndarray of shape (N_windows, 128)
+        """
+        if self.raw is None:
+            return np.empty((0, 128), dtype=np.float32)
+
+        data = self.raw.get_data()
+        sfreq = float(self.metadata.get("sfreq", 128.0))
+        n_channels, total_samples = data.shape
+
+        # Standardize to 32 EEG channels (repeat or truncate)
+        if n_channels >= 32:
+            data_32 = data[:32, :]
+        else:
+            repeats = int(np.ceil(32 / n_channels))
+            data_32 = np.tile(data, (repeats, 1))[:32, :]
+
+        window_samples = max(int(round(window_sec * sfreq)), 64)
+        n_windows = total_samples // window_samples
+
+        if n_windows == 0:
+            return np.empty((0, 128), dtype=np.float32)
+
+        windowed_raw = np.zeros((n_windows, 32, window_samples), dtype=np.float32)
+        for w in range(n_windows):
+            start = w * window_samples
+            end = start + window_samples
+            windowed_raw[w] = data_32[:, start:end]
+
+        from snn_ai_optimizer.features.eeg_features import extract_band_powers
+        nperseg = min(window_samples, 256)
+        return extract_band_powers(windowed_raw, fs=int(sfreq), nperseg=nperseg)
+
     def get_analysis_data(self) -> Dict:
         """Get formatted data ready for analysis."""
         if not self.features:
             self.extract_features()
 
-        # Compute cognitive states for each time point
-        from snn_ai_optimizer.cognitive import compute_cognitive_state
+        from snn_ai_optimizer.cognitive import compute_cognitive_state_full
+        from snn_ai_optimizer.snn.inference import project_scalars_to_128_features
+        from snn_ai_optimizer.optimizer import recommend_task
+
+        window_feats = self.extract_windowed_128_features()
+        n_windows = len(window_feats)
 
         states = []
+        arousals = []
         recommendations = []
         heart_rates = []
 
         for i, (alpha, beta) in enumerate(zip(self.features["alpha"], self.features["beta"])):
-            lf_hf = self.features["lf_hf_ratio"] + np.random.normal(0, 0.1)  # Add slight variation
-            state = compute_cognitive_state(alpha, beta, lf_hf)
-            from snn_ai_optimizer.optimizer import recommend_task
+            lf_hf = self.features["lf_hf_ratio"] + float(np.random.normal(0, 0.05))
+
+            if n_windows > 0:
+                # Map timestamp index proportionally to available windowed 128-features
+                w_idx = min(int(round((i / max(len(self.features["alpha"]) - 1, 1)) * (n_windows - 1))), n_windows - 1)
+                feat_128 = window_feats[w_idx]
+            else:
+                feat_128 = project_scalars_to_128_features(alpha=alpha, beta=beta, lf_hf=lf_hf)
+
+            snn_res = compute_cognitive_state_full(alpha, beta, lf_hf, features_128=feat_128)
+            state = snn_res["cognitive_state"]
+            arousal = snn_res["arousal_label"]
+
             rec = recommend_task(state)
-            hr = 60 + (lf_hf * 20) + np.random.normal(0, 3)
+            hr = 60 + (lf_hf * 20) + float(np.random.normal(0, 2))
 
             states.append(state)
+            arousals.append(arousal)
             recommendations.append(rec)
-            heart_rates.append(float(hr))
+            heart_rates.append(round(float(hr), 2))
 
         return {
             "metadata": self.metadata,
@@ -158,14 +212,16 @@ class EDFProcessor:
                     "beta": beta,
                     "heart_rate": hr,
                     "cognitive_state": state,
+                    "arousal_label": arousal,
                     "recommendation": rec,
                 }
-                for ts, alpha, beta, hr, state, rec in zip(
+                for ts, alpha, beta, hr, state, arousal, rec in zip(
                     self.features["timestamps"],
                     self.features["alpha"],
                     self.features["beta"],
                     heart_rates,
                     states,
+                    arousals,
                     recommendations,
                 )
             ],

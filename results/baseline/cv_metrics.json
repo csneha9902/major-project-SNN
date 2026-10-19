@@ -1,0 +1,20 @@
+{
+  "svm_best_cv_f1": 0.42818996408892085,
+  "svm_best_c": 1.0,
+  "svm_held_out": {
+    "accuracy": 0.5313218390804598,
+    "f1_macro": 0.5312363341476856,
+    "auc": 0.48342360016356306,
+    "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.61      0.48      0.54      1972\n LOW_AROUSAL       0.47      0.60      0.52      1508\n\n    accuracy                           0.53      3480\n   macro avg       0.54      0.54      0.53      3480\nweighted avg       0.55      0.53      0.53      3480\n",
+    "trial_accuracy": 0.5583333333333333,
+    "trial_f1_macro": 0.5580571190327288
+  },
+  "rf_held_out": {
+    "accuracy": 0.5545977011494253,
+    "f1_macro": 0.5372389655429197,
+    "auc": 0.4534381540506078,
+    "classification_report": "              precision    recall  f1-score   support\n\nHIGH_AROUSAL       0.60      0.66      0.63      1972\n LOW_AROUSAL       0.48      0.42      0.45      1508\n\n    accuracy                           0.55      3480\n   macro avg       0.54      0.54      0.54      3480\nweighted avg       0.55      0.55      0.55      3480\n",
+    "trial_accuracy": 0.5666666666666667,
+    "trial_f1_macro": 0.548611111111111
+  }
+}

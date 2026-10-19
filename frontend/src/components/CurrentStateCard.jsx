@@ -1,26 +1,55 @@
 import { Activity, Brain, Zap } from 'lucide-react';
 
 const stateConfig = {
-  Neutral: {
-    icon: Activity,
-    gradient: 'from-blue-600/15 to-green-500/10',
-    textColor: 'text-[#166534]',
-    glowColor: 'rgba(34, 197, 94, 0.15)',
-    iconGlow: 'drop-shadow(0 0 6px rgba(34,197,94,0.5))',
-  },
-  Focused: {
-    icon: Brain,
-    gradient: 'from-green-600/20 to-blue-600/15',
-    textColor: 'text-[#14532D]',
-    glowColor: 'rgba(22, 163, 74, 0.25)',
-    iconGlow: 'drop-shadow(0 0 8px rgba(22,163,74,0.6))',
-  },
-  Stressed: {
+  'High Arousal': {
+    label: 'High Arousal (SNN)',
+    description: 'Elevated Cognitive Activation (Arousal > 5.0)',
     icon: Zap,
     gradient: 'from-amber-600/15 to-red-500/10',
-    textColor: 'text-amber-800',
+    textColor: 'text-amber-900',
     glowColor: 'rgba(217, 119, 6, 0.2)',
     iconGlow: 'drop-shadow(0 0 8px rgba(217,119,6,0.6))',
+    dotColor: '#D97706',
+  },
+  'Low Arousal': {
+    label: 'Low Arousal (SNN)',
+    description: 'Baseline / Relaxed State (Arousal <= 5.0)',
+    icon: Brain,
+    gradient: 'from-emerald-600/20 to-blue-600/15',
+    textColor: 'text-emerald-900',
+    glowColor: 'rgba(16, 185, 129, 0.25)',
+    iconGlow: 'drop-shadow(0 0 8px rgba(16,185,129,0.6))',
+    dotColor: '#10B981',
+  },
+  Stressed: {
+    label: 'High Arousal (High Cognitive Load)',
+    description: 'Elevated Beta Synchrony (Arousal > 5.0)',
+    icon: Zap,
+    gradient: 'from-amber-600/15 to-red-500/10',
+    textColor: 'text-amber-900',
+    glowColor: 'rgba(217, 119, 6, 0.2)',
+    iconGlow: 'drop-shadow(0 0 8px rgba(217,119,6,0.6))',
+    dotColor: '#D97706',
+  },
+  Focused: {
+    label: 'Low Arousal (Steady Engagement)',
+    description: 'Alpha-Synchronized Focus (Arousal <= 5.0)',
+    icon: Brain,
+    gradient: 'from-emerald-600/20 to-blue-600/15',
+    textColor: 'text-emerald-900',
+    glowColor: 'rgba(16, 185, 129, 0.25)',
+    iconGlow: 'drop-shadow(0 0 8px rgba(16,185,129,0.6))',
+    dotColor: '#10B981',
+  },
+  Neutral: {
+    label: 'Calibrated Baseline (SNN)',
+    description: 'Resting EEG State (Arousal ~ 5.0)',
+    icon: Activity,
+    gradient: 'from-blue-600/15 to-emerald-500/10',
+    textColor: 'text-blue-900',
+    glowColor: 'rgba(59, 130, 246, 0.15)',
+    iconGlow: 'drop-shadow(0 0 6px rgba(59,130,246,0.5))',
+    dotColor: '#3B82F6',
   },
 };
 
@@ -34,9 +63,12 @@ export default function CurrentStateCard({ state }) {
       style={{ boxShadow: `var(--shadow-card), 0 0 30px ${config.glowColor}` }}
     >
       <Icon className="state-icon" style={{ filter: config.iconGlow }} />
-      <span className="font-heading font-semibold">Current State: {state}</span>
+      <div className="flex flex-col">
+        <span className="font-heading font-bold text-sm">{config.label}</span>
+        <span className="text-[0.68rem] text-slate-600 font-mono">{config.description}</span>
+      </div>
       <span className="live-dot ml-auto" style={{
-        background: state === 'Stressed' ? 'var(--danger)' : 'var(--accent-cyan)',
+        background: config.dotColor,
       }} />
     </div>
   );

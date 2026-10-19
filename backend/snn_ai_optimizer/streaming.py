@@ -12,7 +12,8 @@ import numpy as np
 # Removed legacy SNN imports
 
 
-from .cognitive import compute_cognitive_state
+from .cognitive import compute_cognitive_state, compute_cognitive_state_full
+from .snn.inference import project_scalars_to_128_features
 from .optimizer import recommend_task, _load_recommender
 
 
@@ -259,8 +260,10 @@ class DataStreamer:
                         "external_healthy": False,
                     })
 
-                # Cognitive State inference (which now uses SNN natively)
-                state = compute_cognitive_state(alpha, beta, lf_hf)
+                # 128-dimensional band-power feature representation for SNN inference
+                features_128 = project_scalars_to_128_features(alpha=alpha, beta=beta, lf_hf=lf_hf)
+                snn_res = compute_cognitive_state_full(alpha, beta, lf_hf, features_128=features_128)
+                state = snn_res["cognitive_state"]
                     
                 # Derive heart rate BPM with smoother, more stable variation
                 t = time.time()
@@ -295,6 +298,11 @@ class DataStreamer:
                     "cognitive_state": state,
                     "recommendation": rec,
                     "ingestion": self.get_ingestion_status(),
+                    "snn_inference": {
+                        "arousal_label": snn_res["arousal_label"],
+                        "confidence": snn_res["confidence"],
+                        "using_snn": snn_res["using_snn"],
+                    },
                 }
                 self._latest = frame
                 if self._tracker:

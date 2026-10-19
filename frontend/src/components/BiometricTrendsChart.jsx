@@ -15,8 +15,8 @@ const BiometricTooltip = ({ active, payload, label, onHover, onHoverEnd }) => {
   }
 
   const items = [
-    { name: 'Focus (Beta)', value: payload[0]?.value, color: '#16A34A' },
-    { name: 'Relaxation (Alpha)', value: payload[1]?.value, color: '#059669' },
+    { name: 'Beta Power (13-30 Hz)', value: payload[0]?.value, color: '#16A34A' },
+    { name: 'Alpha Power (8-12 Hz)', value: payload[1]?.value, color: '#059669' },
     { name: 'Heart Rate', value: payload[2]?.value, color: '#D97706' },
   ];
 
@@ -162,7 +162,7 @@ export default function BiometricTrendsChart({ data, currentMetrics, onHover, on
             yAxisId="left"
             type="monotone"
             dataKey="beta"
-            name="Focus (Beta)"
+            name="Beta Power (13-30 Hz)"
             stroke="#16A34A"
             strokeWidth={2.5}
             dot={false}
@@ -174,7 +174,7 @@ export default function BiometricTrendsChart({ data, currentMetrics, onHover, on
             yAxisId="left"
             type="monotone"
             dataKey="alpha"
-            name="Relaxation (Alpha)"
+            name="Alpha Power (8-12 Hz)"
             stroke="#059669"
             strokeWidth={2.5}
             dot={false}
@@ -200,11 +200,11 @@ export default function BiometricTrendsChart({ data, currentMetrics, onHover, on
       {currentMetrics && (
         <div className="current-values">
           <span>
-            <span className="text-[var(--text-muted)] text-[0.7rem] uppercase tracking-wider block mb-0.5">Focus (β)</span>
+            <span className="text-[var(--text-muted)] text-[0.7rem] uppercase tracking-wider block mb-0.5">Beta Power (β)</span>
             <span className="text-[#16A34A] font-mono font-bold">{currentMetrics.beta?.toFixed?.(2)}</span>
           </span>
           <span>
-            <span className="text-[var(--text-muted)] text-[0.7rem] uppercase tracking-wider block mb-0.5">Relax (α)</span>
+            <span className="text-[var(--text-muted)] text-[0.7rem] uppercase tracking-wider block mb-0.5">Alpha Power (α)</span>
             <span className="text-[#059669] font-mono font-bold">{currentMetrics.alpha?.toFixed?.(2)}</span>
           </span>
           <span>
