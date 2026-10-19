@@ -361,6 +361,7 @@ def deap_snn_run(
         },
     }
     (RESULTS_DIR / "experiment.json").write_text(json.dumps(experiment, indent=2), encoding="utf-8")
+    (RESULTS_DIR / "experiment_config.json").write_text(json.dumps(experiment, indent=2), encoding="utf-8")
 
     return test_metrics
 

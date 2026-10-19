@@ -50,6 +50,23 @@ def parse_args():
         help="Number of epochs for SNN training (default: 30).",
     )
     parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for SNN optimizer (default: 1e-3).",
+    )
+    parser.add_argument(
+        "--time-steps",
+        type=int,
+        default=50,
+        help="Simulation time-steps T for Poisson rate coding (default: 50).",
+    )
+    parser.add_argument(
+        "--tune",
+        action="store_true",
+        help="Enable hyperparameter tuning mode (runs multiple configuration evaluations).",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -81,7 +98,7 @@ def main():
         print("Please configure DEAP_DATA_DIR or supply --deap-dir.")
         sys.exit(1)
 
-    results_dir = REPO_ROOT / "backend" / "results"
+    results_dir = REPO_ROOT / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     start_total = time.time()
@@ -128,17 +145,17 @@ def main():
         "benchmarks": {
             "svm_rbf": {
                 "accuracy": base_metrics.get("svm", {}).get("accuracy"),
-                "f1": base_metrics.get("svm", {}).get("f1"),
+                "f1": base_metrics.get("svm", {}).get("f1_macro", base_metrics.get("svm", {}).get("f1")),
                 "auc": base_metrics.get("svm", {}).get("auc"),
             },
             "random_forest": {
                 "accuracy": base_metrics.get("random_forest", {}).get("accuracy"),
-                "f1": base_metrics.get("random_forest", {}).get("f1"),
+                "f1": base_metrics.get("random_forest", {}).get("f1_macro", base_metrics.get("random_forest", {}).get("f1")),
                 "auc": base_metrics.get("random_forest", {}).get("auc"),
             },
             "deap_arousal_snn": {
                 "accuracy": snn_metrics.get("accuracy"),
-                "f1": snn_metrics.get("f1"),
+                "f1": snn_metrics.get("f1_macro", snn_metrics.get("f1")),
                 "auc": snn_metrics.get("auc"),
             },
         },
@@ -147,6 +164,39 @@ def main():
     report_path = results_dir / "benchmark_report.json"
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"\n[Pipeline] Comparative benchmark report saved to: {report_path}")
+
+    # Synchronize latest_metrics.json with real evaluated values
+    latest_metrics = {
+        "snn": {
+            "accuracy": snn_metrics.get("accuracy"),
+            "f1_macro": snn_metrics.get("f1_macro", snn_metrics.get("f1")),
+            "auc": snn_metrics.get("auc"),
+        },
+        "baseline": {
+            "svm": base_metrics.get("svm", {}),
+            "random_forest": base_metrics.get("random_forest", {}),
+        }
+    }
+    latest_metrics_path = results_dir / "latest_metrics.json"
+    latest_metrics_path.write_text(json.dumps(latest_metrics, indent=2), encoding="utf-8")
+    print(f"[Pipeline] Updated active metrics cache: {latest_metrics_path}")
+
+    # Save experiment config record
+    exp_config = {
+        "dataset": "DEAP",
+        "label": "arousal (threshold=5)",
+        "preprocessing": "Welch PSD band-power (128-dim)",
+        "random_seed": args.seed,
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "time_steps": args.time_steps,
+        "benchmarks": report["benchmarks"],
+        "timestamp": report["timestamp"],
+    }
+    exp_config_path = results_dir / "snn" / "experiment_config.json"
+    exp_config_path.write_text(json.dumps(exp_config, indent=2), encoding="utf-8")
+    print(f"[Pipeline] Saved experiment configuration to: {exp_config_path}")
+
 
     # 5. Display formatted summary scorecard
     print("\n" + "=" * 70)

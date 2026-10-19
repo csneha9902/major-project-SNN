@@ -309,6 +309,17 @@ def baseline_run(
         json.dumps(metrics_summary, indent=2), encoding="utf-8"
     )
 
+    # cv_metrics.json — cross-validation and test scorecard
+    cv_summary = {
+        "svm_best_cv_f1": float(svm_grid.best_score_),
+        "svm_best_c": best_C,
+        "svm_held_out": svm_metrics,
+        "rf_held_out": rf_metrics,
+    }
+    (RESULTS_DIR / "cv_metrics.json").write_text(
+        json.dumps(cv_summary, indent=2), encoding="utf-8"
+    )
+
     # experiment.json — full provenance record (AGENTS.md requirement)
     experiment = {
         "run_timestamp_utc": run_ts,
