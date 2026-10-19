@@ -200,3 +200,53 @@ def test_deap_snn_custom_input_dim():
     x = torch.rand(10, 2, custom_dim)
     out = model(x)
     assert out.shape == (10, 2, 2)
+
+
+# ---------------------------------------------------------------------------
+# Test 14: forward_with_traces returns complete neuromorphic dynamics
+# ---------------------------------------------------------------------------
+def test_deap_snn_forward_with_traces_structure():
+    model = DEAPArousalSNN(input_dim=N_FEATURES, hidden_dims=(64, 32), num_classes=2)
+    time_steps = 15
+    batch_size = 1
+    x = (torch.rand(time_steps, batch_size, N_FEATURES) > 0.5).float()
+
+    traces = model.forward_with_traces(x, n_sampled_neurons=8)
+    assert traces["time_steps"] == time_steps
+    assert traces["v_threshold"] == 1.0
+    assert traces["v_reset"] == 0.0
+    assert 0.0 <= traces["overall_sparsity"] <= 1.0
+
+    layers = traces["layers"]
+    assert "input" in layers
+    assert "hidden1" in layers
+    assert "hidden2" in layers
+    assert "output" in layers
+
+    # Check hidden1 layer dynamics
+    h1 = layers["hidden1"]
+    assert h1["n_neurons"] == 8
+    assert len(h1["spikes"]) == time_steps
+    assert len(h1["v"]) == time_steps
+    assert 0.0 <= h1["firing_rate"] <= 1.0
+
+    # Check output layer dynamics
+    out_layer = layers["output"]
+    assert out_layer["n_neurons"] == 2
+    assert len(out_layer["spikes"]) == time_steps
+    assert len(out_layer["v"]) == time_steps
+    assert 0.0 <= out_layer["firing_rate"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Test 15: forward_with_traces preserves model multi-step state mode
+# ---------------------------------------------------------------------------
+def test_deap_snn_forward_with_traces_preserves_multi_step_mode():
+    model = DEAPArousalSNN(input_dim=N_FEATURES, hidden_dims=(64, 32), num_classes=2)
+    x = (torch.rand(10, 1, N_FEATURES) > 0.5).float()
+    _ = model.forward_with_traces(x, n_sampled_neurons=8)
+
+    # After forward_with_traces, model should still perform standard forward pass without error
+    out = model(x)
+    assert out.shape == (10, 1, 2)
+

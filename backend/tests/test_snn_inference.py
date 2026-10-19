@@ -189,3 +189,22 @@ def test_singleton_engine():
     e1 = get_snn_inference_engine()
     e2 = get_snn_inference_engine()
     assert e1 is e2
+
+
+# ---------------------------------------------------------------------------
+# Test 14: SNNInferenceEngine get_neuromorphic_traces produces valid dynamics
+# ---------------------------------------------------------------------------
+def test_inference_engine_get_neuromorphic_traces():
+    engine = get_snn_inference_engine()
+    feats = np.random.rand(N_FEATURES).astype(np.float32)
+    traces = engine.get_neuromorphic_traces(feats, time_steps=20, n_sampled_neurons=8)
+
+    assert "time_steps" in traces
+    assert traces["time_steps"] == 20
+    assert "layers" in traces
+    assert "overall_sparsity" in traces
+    assert "model_status" in traces
+    assert traces["model_status"] in ("active_checkpoint", "unweighted_initialization")
+    assert "hidden1" in traces["layers"]
+    assert len(traces["layers"]["hidden1"]["spikes"]) == 20
+

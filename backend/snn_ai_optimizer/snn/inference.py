@@ -197,6 +197,13 @@ class SNNInferenceEngine:
         results = self.predict_batch(arr, alpha_hints=[alpha_hint], beta_hints=[beta_hint])
         return results[0]
 
+    def _normalize_features(self, batch_arr: np.ndarray) -> np.ndarray:
+        """Min-Max normalize band-power features into [0, 1] per sample for Poisson coding."""
+        b_min = np.min(batch_arr, axis=1, keepdims=True)
+        b_max = np.max(batch_arr, axis=1, keepdims=True)
+        denom = np.where(b_max - b_min < 1e-9, 1.0, b_max - b_min)
+        return np.clip((batch_arr - b_min) / denom, 0.0, 1.0)
+
     def predict_batch(
         self,
         features_batch: np.ndarray,
@@ -225,11 +232,7 @@ class SNNInferenceEngine:
 
         if self._model is not None:
             # SNN forward pass
-            # Min-Max normalize batch into [0, 1] for Poisson spike coding
-            b_min = np.min(batch_arr, axis=1, keepdims=True)
-            b_max = np.max(batch_arr, axis=1, keepdims=True)
-            denom = np.where(b_max - b_min < 1e-9, 1.0, b_max - b_min)
-            norm_batch = np.clip((batch_arr - b_min) / denom, 0.0, 1.0)
+            norm_batch = self._normalize_features(batch_arr)
 
             with torch.no_grad():
                 spikes = poisson_encode_features(norm_batch, time_steps=self.time_steps).to(self.device)
@@ -307,6 +310,41 @@ class SNNInferenceEngine:
                 "using_snn": False,
             })
         return outputs
+
+    def get_neuromorphic_traces(
+        self,
+        features: np.ndarray,
+        time_steps: int = DEFAULT_TIME_STEPS,
+        n_sampled_neurons: int = 16,
+    ) -> Dict[str, Any]:
+        """
+        Compute real-time neuromorphic spiking raster and membrane potentials V(t).
+        """
+        feat_arr = np.asarray(features, dtype=np.float32)
+        if feat_arr.ndim == 1:
+            if feat_arr.shape[0] != N_FEATURES:
+                raise ValueError(f"Expected {N_FEATURES} features, got {feat_arr.shape[0]}")
+            feat_arr = feat_arr.reshape(1, -1)
+        elif feat_arr.ndim == 2:
+            if feat_arr.shape[1] != N_FEATURES:
+                raise ValueError(f"Expected {N_FEATURES} features, got {feat_arr.shape[1]}")
+        else:
+            raise ValueError(f"Invalid features array ndim {feat_arr.ndim}")
+
+        norm_feats = self._normalize_features(feat_arr)
+        spikes = poisson_encode_features(norm_feats, time_steps=time_steps)
+
+        if self._model is not None:
+            self._model.eval()
+            with torch.no_grad():
+                traces = self._model.forward_with_traces(spikes, n_sampled_neurons=n_sampled_neurons)
+                traces["model_status"] = "active_checkpoint"
+                return traces
+        else:
+            temp_model = DEAPArousalSNN(input_dim=N_FEATURES, hidden_dims=(256, 128), num_classes=2)
+            traces = temp_model.forward_with_traces(spikes, n_sampled_neurons=n_sampled_neurons)
+            traces["model_status"] = "unweighted_initialization"
+            return traces
 
 
 # Singleton cache

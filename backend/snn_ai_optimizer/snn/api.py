@@ -116,3 +116,33 @@ async def predict_cognitive_state(request: PredictRequest):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/neuromorphic-traces")
+@router.post("/neuromorphic-traces")
+async def get_neuromorphic_traces_endpoint(
+    alpha: Optional[float] = None,
+    beta: Optional[float] = None,
+    lf_hf: Optional[float] = None,
+    time_steps: int = 50,
+    n_neurons: int = 16,
+):
+    """
+    Returns real-time LIF neuron spiking raster matrices and membrane potential V(t) traces.
+    """
+    engine = get_snn_inference_engine()
+
+    if alpha is not None and beta is not None:
+        feats = project_scalars_to_128_features(alpha=alpha, beta=beta, lf_hf=lf_hf)
+    else:
+        feats = project_scalars_to_128_features(alpha=0.65, beta=0.72, lf_hf=1.15)
+
+    try:
+        traces = engine.get_neuromorphic_traces(
+            features=feats,
+            time_steps=time_steps,
+            n_sampled_neurons=n_neurons,
+        )
+        return traces
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

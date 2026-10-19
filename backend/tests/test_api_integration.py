@@ -158,3 +158,26 @@ def test_streaming_inference_metadata_structure():
     feats = project_scalars_to_128_features(alpha=0.7, beta=0.3, lf_hf=1.2)
     assert feats.shape == (128,)
     assert (feats >= 0).all()
+
+
+def test_neuromorphic_traces_endpoint_get(client):
+    res = client.get("/api/snn/neuromorphic-traces?time_steps=25&n_neurons=8")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["time_steps"] == 25
+    assert data["v_threshold"] == 1.0
+    assert data["v_reset"] == 0.0
+    assert 0.0 <= data["overall_sparsity"] <= 1.0
+    assert "layers" in data
+    assert "hidden1" in data["layers"]
+    assert "output" in data["layers"]
+    assert len(data["layers"]["hidden1"]["spikes"]) == 25
+
+
+def test_neuromorphic_traces_endpoint_post_with_scalars(client):
+    res = client.post("/api/snn/neuromorphic-traces?alpha=0.6&beta=0.4&time_steps=20&n_neurons=8")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["time_steps"] == 20
+    assert "layers" in data
+

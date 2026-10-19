@@ -9,8 +9,9 @@ import SessionSummaryPanel from "../components/SessionSummaryPanel";
 import ProgressCalendar from "../components/ProgressCalendar";
 import UserOnboardingHub from "../components/UserOnboardingHub";
 import { useDataStream } from "../hooks/useDataStream";
+import SNNSpikeRasterVisualizer from "../components/SNNSpikeRasterVisualizer";
 import GlowButton from "../components/ui/GlowButton";
-import { Sparkles, Activity, FileText, CheckCircle2, RotateCcw } from "lucide-react";
+import { Sparkles, Activity, FileText, CheckCircle2, RotateCcw, Zap } from "lucide-react";
 import "../App.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState([]);
   const [hoveredState, setHoveredState] = useState(null);
   const [hoveredRecommendation, setHoveredRecommendation] = useState(null);
+  const [showNeuromorphicRaster, setShowNeuromorphicRaster] = useState(true);
 
   // Load uploaded file analysis
   const loadAnalysis = async (id) => {
@@ -276,6 +278,30 @@ export default function Dashboard() {
               />
               <SessionSummaryPanel isRunning={running} />
             </div>
+          </div>
+
+          {/* Interactive SNN Neuromorphic Spike Raster & Membrane Potential Section */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setShowNeuromorphicRaster(!showNeuromorphicRaster)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold font-mono tracking-wide bg-cyan-950/5 hover:bg-cyan-900/10 text-cyan-900 border border-cyan-300/80 shadow-xs transition-all"
+              >
+                <Zap size={14} className={showNeuromorphicRaster ? "text-cyan-600 fill-cyan-500/20" : "text-slate-400"} />
+                <span>⚡ NEUROMORPHIC SPIKE DYNAMICS: {showNeuromorphicRaster ? "EXPANDED" : "COLLAPSED"}</span>
+              </button>
+              <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+                SpikingJelly LIF Multi-Step • T=50 Raster Grid & Membrane V(t)
+              </span>
+            </div>
+
+            {showNeuromorphicRaster && (
+              <SNNSpikeRasterVisualizer 
+                currentMetrics={currentMetrics} 
+                isLiveStreaming={running && dataSource === 'stream'} 
+              />
+            )}
           </div>
 
           {/* Dynamic Progress & Health Calendar Keeper */}
