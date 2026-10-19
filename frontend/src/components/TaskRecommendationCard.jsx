@@ -8,19 +8,11 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
   const [feedbackSuccess, setFeedbackSuccess] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  const taskTitle = recommendation?.task || 'Practice Easy Problems';
-  const situation = recommendation?.situation || (
-    'High Beta wave elevation with suppressed Alpha waves and an elevated heart rate (98 BPM). Your neural signals indicate acute cognitive stress detected during high-load SNN cognitive monitoring.'
-  );
-  const reasoning = recommendation?.reasoning || (
-    'Excessive cognitive strain reduces working memory capacity and accelerates burnout. Lowering task difficulty and initiating brief relaxation intervals protects cognitive health.'
-  );
-  const nextSteps = recommendation?.next_steps || [
-    'Execute 3 minutes of 4-7-8 deep breathing to re-engage parasympathetic neural recovery.',
-    'Switch to Tier 1/2 practice problems to consolidate retention without cognitive overload.',
-    'Hydrate and step back from high-intensity problem solving for a 5-minute break.'
-  ];
-  const difficultyTag = recommendation?.difficulty_tag || (recommendation?.difficulty ? `Tier ${recommendation.difficulty} Load` : 'Tier 1 - Reduced Load');
+  const taskTitle = recommendation?.task || '—';
+  const situation = recommendation?.situation ?? null;
+  const reasoning = recommendation?.reasoning ?? null;
+  const nextSteps = recommendation?.next_steps ?? null;
+  const difficultyTag = recommendation?.difficulty_tag || (recommendation?.difficulty ? `Tier ${recommendation.difficulty} Load` : null);
   const state = recommendation?.cognitive_state || recommendation?.state || currentState || 'Neutral';
 
   // Badge styling depending on state
@@ -85,9 +77,11 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
           <span className="text-[0.7rem] font-bold tracking-wider uppercase text-[var(--accent-cyan)] flex items-center gap-1">
             <Zap size={14} /> Recommended Next Action
           </span>
-          <span className="text-[0.68rem] px-2 py-0.5 rounded-md bg-[var(--bg-card)] font-mono font-medium text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-            {difficultyTag}
-          </span>
+          {difficultyTag && (
+            <span className="text-[0.68rem] px-2 py-0.5 rounded-md bg-[var(--bg-card)] font-mono font-medium text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+              {difficultyTag}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-lg font-heading font-bold text-[var(--text-primary)]">
           <ArrowRight size={20} className="text-[var(--accent-cyan)] flex-shrink-0 animate-pulse" />
@@ -95,32 +89,37 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
         </div>
       </div>
 
-      {/* Neural Situation Analysis */}
-      <div className="mb-4">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-          <Activity size={14} className="text-[var(--accent-cyan)]" />
-          <span>Neural Situation Analysis</span>
+      {/* Neural Situation Analysis — only shown when API provides it */}
+      {situation && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+            <Activity size={14} className="text-[var(--accent-cyan)]" />
+            <span>Neural Situation Analysis</span>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-subtle)] p-3 rounded-lg border border-[var(--border-subtle)]">
+            {situation}
+          </p>
         </div>
-        <p className="text-xs text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-subtle)] p-3 rounded-lg border border-[var(--border-subtle)]">
-          {situation}
-        </p>
-      </div>
+      )}
 
       {/* Cognitive Health Action Plan */}
-      <div className="mb-4">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
-          <ShieldCheck size={14} className="text-[var(--accent-cyan)]" />
-          <span>Cognitive Health Next Steps</span>
+      {/* Cognitive Health Next Steps — only shown when API provides them */}
+      {nextSteps && nextSteps.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+            <ShieldCheck size={14} className="text-[var(--accent-cyan)]" />
+            <span>Cognitive Health Next Steps</span>
+          </div>
+          <div className="space-y-2">
+            {nextSteps.map((step, idx) => (
+              <div key={idx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] bg-[var(--bg-subtle)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]/60">
+                <CheckCircle2 size={15} className="text-[var(--accent-cyan)] flex-shrink-0 mt-0.5" />
+                <span className="leading-snug">{step}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          {nextSteps.map((step, idx) => (
-            <div key={idx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] bg-[var(--bg-subtle)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]/60">
-              <CheckCircle2 size={15} className="text-[var(--accent-cyan)] flex-shrink-0 mt-0.5" />
-              <span className="leading-snug">{step}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Interactive Q-Learning Reinforcement Loop */}
       <div className="pt-3.5 border-t border-[var(--border-subtle)] mb-3">
@@ -204,13 +203,15 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
         )}
       </div>
 
-      {/* SNN Adaptation Rationale */}
-      <div className="pt-2 border-t border-[var(--border-subtle)]">
-        <p className="text-[0.72rem] text-[var(--text-muted)] italic leading-relaxed">
-          <strong className="not-italic text-[var(--text-secondary)]">Why this change: </strong>
-          {reasoning}
-        </p>
-      </div>
+      {/* SNN Adaptation Rationale — only shown when API provides it */}
+      {reasoning && (
+        <div className="pt-2 border-t border-[var(--border-subtle)]">
+          <p className="text-[0.72rem] text-[var(--text-muted)] italic leading-relaxed">
+            <strong className="not-italic text-[var(--text-secondary)]">Why this change: </strong>
+            {reasoning}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
