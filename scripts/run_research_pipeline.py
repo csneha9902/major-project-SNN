@@ -72,6 +72,12 @@ def parse_args():
         default=42,
         help="Random seed for subject-wise split and model initialization (default: 42).",
     )
+    parser.add_argument(
+        "--windowed",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable 4-second sliding window segmentation (29 windows/trial, default: True).",
+    )
     return parser.parse_args()
 
 
@@ -108,16 +114,16 @@ def main():
     print(" STEP 1: Training Baseline Models (SVM RBF & Random Forest)")
     print("-" * 70)
     start_base = time.time()
-    train_baseline()
+    train_baseline(use_windowing=args.windowed)
     base_duration = round(time.time() - start_base, 2)
     print(f"[Pipeline] Baseline training completed in {base_duration}s.")
 
     # 3. Train SNN model (DEAPArousalSNN)
     print("\n" + "-" * 70)
-    print(f" STEP 2: Training Spiking Neural Network (DEAPArousalSNN, {args.epochs} epochs)")
+    print(f" STEP 2: Training Spiking Neural Network (DEAPArousalSNN, {args.epochs} epochs, windowed={args.windowed})")
     print("-" * 70)
     start_snn = time.time()
-    snn_run()
+    snn_run(epochs=args.epochs, use_windowing=args.windowed)
     snn_duration = round(time.time() - start_snn, 2)
     print(f"[Pipeline] SNN training completed in {snn_duration}s.")
 

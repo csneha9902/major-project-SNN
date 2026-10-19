@@ -35,6 +35,7 @@ def snn_run(
     test_size: float = 0.25,
     random_seed: int = 42,
     epochs: int = 30,
+    use_windowing: bool = True,
 ) -> Dict[str, Any]:
     """
     Execute real SNN training on DEAP and log true evaluated metrics.
@@ -42,13 +43,14 @@ def snn_run(
     Never hardcodes metrics. If DEAP_DATA_DIR is missing, raises EnvironmentError.
     """
     run_dir = create_run_folder("snn")
-    save_text_log(run_dir, "[SNN Pipeline] Starting real SNN training...")
+    save_text_log(run_dir, f"[SNN Pipeline] Starting real SNN training (windowing={use_windowing})...")
 
     # Train real DEAP SNN
     metrics = deap_snn_run(
         test_size=test_size,
         random_seed=random_seed,
         epochs=epochs,
+        use_windowing=use_windowing,
     )
     save_text_log(run_dir, f"[SNN Pipeline] Training complete. Evaluated metrics: {metrics}")
 

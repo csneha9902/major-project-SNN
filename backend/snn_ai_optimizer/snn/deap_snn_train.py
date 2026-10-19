@@ -59,6 +59,7 @@ from snn_ai_optimizer.features.eeg_features import (
     N_FEATURES,
     SAMPLING_RATE,
     extract_band_powers,
+    extract_windowed_band_powers,
 )
 from snn_ai_optimizer.snn.deap_snn_model import DEAPArousalSNN
 
@@ -104,10 +105,13 @@ def train_and_evaluate_snn(
     y_test: np.ndarray,
     time_steps: int = 50,
     epochs: int = 30,
-    batch_size: int = 16,
+    batch_size: int = 32,
     lr: float = 1e-3,
     random_seed: int = 42,
     device: str | None = None,
+    use_windowing: bool = True,
+    window_sec: float = 4.0,
+    step_sec: float = 2.0,
 ) -> Tuple[DEAPArousalSNN, Dict[str, Any], Dict[str, Any]]:
     """
     Train and evaluate DEAPArousalSNN on raw EEG arrays with no data leakage.
@@ -118,6 +122,17 @@ def train_and_evaluate_snn(
     y_train : ndarray of shape (N_train,)
     X_test_raw : ndarray of shape (N_test, 32, 8064)
     y_test : ndarray of shape (N_test,)
+    time_steps : int, default 50
+    epochs : int, default 30
+    batch_size : int, default 32
+    lr : float, default 1e-3
+    random_seed : int, default 42
+    device : str or None
+    use_windowing : bool, default True
+        If True, segments 63s trials into 4.0s sliding windows with 2.0s stride (29 windows/trial).
+        Expands sample count ~29x while strictly maintaining subject-wise disjointness.
+    window_sec : float, default 4.0
+    step_sec : float, default 2.0
 
     Returns
     -------
@@ -133,10 +148,22 @@ def train_and_evaluate_snn(
     np.random.seed(random_seed)
 
     # 1. Feature extraction
-    X_train_feats = extract_band_powers(X_train_raw, fs=SAMPLING_RATE)
-    X_test_feats = extract_band_powers(X_test_raw, fs=SAMPLING_RATE)
+    if use_windowing:
+        X_train_feats, y_train_eff, n_win_tr = extract_windowed_band_powers(
+            X_train_raw, y=y_train, window_sec=window_sec, step_sec=step_sec, fs=SAMPLING_RATE
+        )
+        X_test_feats, y_test_eff, n_win_te = extract_windowed_band_powers(
+            X_test_raw, y=y_test, window_sec=window_sec, step_sec=step_sec, fs=SAMPLING_RATE
+        )
+        n_windows_per_trial = n_win_te
+    else:
+        X_train_feats = extract_band_powers(X_train_raw, fs=SAMPLING_RATE)
+        X_test_feats = extract_band_powers(X_test_raw, fs=SAMPLING_RATE)
+        y_train_eff = y_train
+        y_test_eff = y_test
+        n_windows_per_trial = 1
 
-    # 2. Normalization fitted on training set only
+    # 2. Normalization fitted on training set only (zero data leakage)
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train_feats)
     X_test_scaled = scaler.transform(X_test_feats)
@@ -156,9 +183,10 @@ def train_and_evaluate_snn(
     # PyTorch Dataset for mini-batching
     train_dataset = TensorDataset(
         torch.from_numpy(X_train_norm).float(),
-        torch.from_numpy(y_train).long(),
+        torch.from_numpy(y_train_eff).long(),
     )
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    effective_batch_size = batch_size if use_windowing else min(batch_size, 16)
+    train_loader = DataLoader(train_dataset, batch_size=effective_batch_size, shuffle=True)
 
     history = {"train_loss": [], "train_acc": []}
 
@@ -206,17 +234,17 @@ def train_and_evaluate_snn(
         test_probs = torch.softmax(test_logits, dim=-1).cpu().numpy()
         test_preds = test_probs.argmax(axis=1)
 
-    acc = float(accuracy_score(y_test, test_preds))
-    f1 = float(f1_score(y_test, test_preds, average="macro", zero_division=0))
+    acc = float(accuracy_score(y_test_eff, test_preds))
+    f1 = float(f1_score(y_test_eff, test_preds, average="macro", zero_division=0))
 
     auc = None
-    if len(np.unique(y_test)) == 2:
-        auc = float(roc_auc_score(y_test, test_probs[:, 1]))
+    if len(np.unique(y_test_eff)) == 2:
+        auc = float(roc_auc_score(y_test_eff, test_probs[:, 1]))
 
     report = classification_report(
-        y_test,
+        y_test_eff,
         test_preds,
-        target_names=[LOW_AROUSAL, HIGH_AROUSAL] if np.array_equal(sorted(np.unique(y_test)), [0, 1]) else None,
+        target_names=[LOW_AROUSAL, HIGH_AROUSAL] if np.array_equal(sorted(np.unique(y_test_eff)), [0, 1]) else None,
         zero_division=0,
     )
 
@@ -225,7 +253,20 @@ def train_and_evaluate_snn(
         "f1_macro": f1,
         "auc": auc,
         "classification_report": report,
+        "use_windowing": use_windowing,
+        "n_windows_per_trial": n_windows_per_trial,
+        "n_train_samples": len(y_train_eff),
+        "n_test_samples": len(y_test_eff),
     }
+
+    # 6. Trial-level Majority Voting (if windowed)
+    if use_windowing and n_windows_per_trial > 1:
+        preds_by_trial = test_preds.reshape(-1, n_windows_per_trial)
+        trial_preds = (np.mean(preds_by_trial == 1, axis=1) >= 0.5).astype(int)
+        trial_acc = float(accuracy_score(y_test, trial_preds))
+        trial_f1 = float(f1_score(y_test, trial_preds, average="macro", zero_division=0))
+        metrics["trial_accuracy"] = trial_acc
+        metrics["trial_f1_macro"] = trial_f1
 
     return model, metrics, history
 
@@ -235,8 +276,9 @@ def deap_snn_run(
     random_seed: int = 42,
     time_steps: int = 50,
     epochs: int = 30,
-    batch_size: int = 16,
+    batch_size: int = 32,
     lr: float = 1e-3,
+    use_windowing: bool = True,
 ) -> Dict[str, Any]:
     """
     Execute full DEAP SNN training and save reproducible provenance results.
@@ -281,7 +323,7 @@ def deap_snn_run(
     X_test_raw = split["X_test"]
     y_test = split["y_test"]
 
-    print(f"[SNN Pipeline] Training SNN on {len(y_train)} trials ({split['n_train_subjects']} subjects)...")
+    print(f"[SNN Pipeline] Training SNN on {len(y_train)} trials ({split['n_train_subjects']} subjects, windowing={use_windowing})...")
     model, test_metrics, history = train_and_evaluate_snn(
         X_train_raw=X_train_raw,
         y_train=y_train,
@@ -292,10 +334,17 @@ def deap_snn_run(
         batch_size=batch_size,
         lr=lr,
         random_seed=random_seed,
+        use_windowing=use_windowing,
     )
 
-    print(f"[SNN Pipeline] Test evaluation results: Accuracy={test_metrics['accuracy']:.4f}, "
-          f"F1={test_metrics['f1_macro']:.4f}, AUC={test_metrics['auc']}")
+    if use_windowing and "trial_accuracy" in test_metrics:
+        print(f"[SNN Pipeline] Window-level results: Acc={test_metrics['accuracy']:.4f}, "
+              f"F1={test_metrics['f1_macro']:.4f}, AUC={test_metrics['auc']:.4f}")
+        print(f"[SNN Pipeline] Trial-level Majority Vote: Acc={test_metrics['trial_accuracy']:.4f}, "
+              f"F1={test_metrics['trial_f1_macro']:.4f}")
+    else:
+        print(f"[SNN Pipeline] Test evaluation results: Accuracy={test_metrics['accuracy']:.4f}, "
+              f"F1={test_metrics['f1_macro']:.4f}, AUC={test_metrics['auc']}")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -305,9 +354,15 @@ def deap_snn_run(
 
     # 2. Save metrics summary
     metrics_summary = {
-        "accuracy": test_metrics["accuracy"],
-        "f1_macro": test_metrics["f1_macro"],
+        "accuracy": test_metrics.get("trial_accuracy", test_metrics["accuracy"]),
+        "f1_macro": test_metrics.get("trial_f1_macro", test_metrics["f1_macro"]),
         "auc": test_metrics["auc"],
+        "window_accuracy": test_metrics["accuracy"],
+        "window_f1_macro": test_metrics["f1_macro"],
+        "use_windowing": use_windowing,
+        "n_windows_per_trial": test_metrics.get("n_windows_per_trial", 1),
+        "n_train_samples": test_metrics.get("n_train_samples", len(y_train)),
+        "n_test_samples": test_metrics.get("n_test_samples", len(y_test)),
     }
     (RESULTS_DIR / "metrics.json").write_text(json.dumps(metrics_summary, indent=2), encoding="utf-8")
 
@@ -328,6 +383,14 @@ def deap_snn_run(
             "sampling_rate_hz": SAMPLING_RATE,
             "scaler": "StandardScaler + MinMaxScaler -> [0, 1] (fitted on train only)",
             "encoding": f"Poisson rate coding, T={time_steps} time-steps",
+            "segmentation": {
+                "use_windowing": use_windowing,
+                "window_sec": 4.0 if use_windowing else 63.0,
+                "step_sec": 2.0 if use_windowing else None,
+                "n_windows_per_trial": test_metrics.get("n_windows_per_trial", 1),
+                "n_train_samples": test_metrics.get("n_train_samples", len(y_train)),
+                "n_test_samples": test_metrics.get("n_test_samples", len(y_test)),
+            },
         },
         "split": {
             "method": "subject_wise (GroupShuffleSplit)",

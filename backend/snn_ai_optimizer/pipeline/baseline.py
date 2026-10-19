@@ -61,6 +61,7 @@ from snn_ai_optimizer.datasets.deap_loader import DEAPLoader
 from snn_ai_optimizer.datasets.deap_split import subject_wise_split
 from snn_ai_optimizer.features.eeg_features import (
     extract_band_powers,
+    extract_windowed_band_powers,
     feature_names,
     N_FEATURES,
     BAND_ORDER,
@@ -150,6 +151,7 @@ def _evaluate(
 def baseline_run(
     test_size: float = TEST_SIZE,
     random_seed: int = RANDOM_SEED,
+    use_windowing: bool = True,
 ) -> Dict[str, Any]:
     """
     Train and evaluate real SVM and Random Forest baselines on DEAP EEG data.
@@ -160,19 +162,15 @@ def baseline_run(
         Fraction of subjects held out for testing.  Default 0.25.
     random_seed : int, optional
         Random seed for reproducible splits and model training.  Default 42.
+    use_windowing : bool, optional
+        If True, applies 4-second sliding windows with 2-second overlap (29 windows/trial)
+        expanding sample count ~29x while preserving subject-wise disjointness.
 
     Returns
     -------
     dict
         ``svm`` and ``random_forest`` sub-dicts, each with keys:
         ``accuracy``, ``f1_macro``, ``auc``, ``classification_report``.
-
-    Raises
-    ------
-    EnvironmentError
-        If ``DEAP_DATA_DIR`` environment variable is not set.
-    FileNotFoundError
-        If no DEAP subject files are found in the configured directory.
     """
     run_ts = datetime.now(timezone.utc).isoformat()
 
@@ -230,9 +228,23 @@ def baseline_run(
     # ------------------------------------------------------------------
     # 4. Extract Welch-PSD band-power features
     # ------------------------------------------------------------------
-    print("[Baseline] Extracting band-power features (Welch PSD) ...")
-    X_train_feats = extract_band_powers(X_train_raw, fs=SAMPLING_RATE, nperseg=WELCH_NPERSEG)
-    X_test_feats  = extract_band_powers(X_test_raw,  fs=SAMPLING_RATE, nperseg=WELCH_NPERSEG)
+    if use_windowing:
+        print("[Baseline] Extracting windowed band-power features (4s window, 2s step) ...")
+        X_train_feats, y_train_eff, n_win_tr = extract_windowed_band_powers(
+            X_train_raw, y=y_train, window_sec=4.0, step_sec=2.0, fs=SAMPLING_RATE
+        )
+        X_test_feats, y_test_eff, n_win_te = extract_windowed_band_powers(
+            X_test_raw, y=y_test, window_sec=4.0, step_sec=2.0, fs=SAMPLING_RATE
+        )
+        n_windows_per_trial = n_win_te
+    else:
+        print("[Baseline] Extracting band-power features (Welch PSD) ...")
+        X_train_feats = extract_band_powers(X_train_raw, fs=SAMPLING_RATE, nperseg=WELCH_NPERSEG)
+        X_test_feats  = extract_band_powers(X_test_raw,  fs=SAMPLING_RATE, nperseg=WELCH_NPERSEG)
+        y_train_eff = y_train
+        y_test_eff = y_test
+        n_windows_per_trial = 1
+
     print(f"[Baseline] Feature shape — train: {X_train_feats.shape}, test: {X_test_feats.shape}")
 
     # ------------------------------------------------------------------
@@ -256,14 +268,14 @@ def baseline_run(
         n_jobs=-1,
         refit=True,
     )
-    svm_grid.fit(X_train_scaled, y_train)
+    svm_grid.fit(X_train_scaled, y_train_eff)
     best_C = float(svm_grid.best_params_["C"])
     print(f"[Baseline] SVM best C={best_C}. Evaluating on test set ...")
 
     svm_pred = svm_grid.predict(X_test_scaled)
     svm_prob = svm_grid.predict_proba(X_test_scaled)
-    svm_metrics = _evaluate(y_test, svm_pred, svm_prob, le)
-    print(f"[Baseline] SVM   — acc={svm_metrics['accuracy']:.4f}  "
+    svm_metrics = _evaluate(y_test_eff, svm_pred, svm_prob, le)
+    print(f"[Baseline] SVM (Window-level) — acc={svm_metrics['accuracy']:.4f}  "
           f"F1={svm_metrics['f1_macro']:.4f}  "
           f"AUC={svm_metrics['auc']:.4f}")
 
@@ -279,13 +291,29 @@ def baseline_run(
         random_state=random_seed,
         n_jobs=-1,
     )
-    rf.fit(X_train_scaled, y_train)
+    rf.fit(X_train_scaled, y_train_eff)
     rf_pred = rf.predict(X_test_scaled)
     rf_prob = rf.predict_proba(X_test_scaled)
-    rf_metrics = _evaluate(y_test, rf_pred, rf_prob, le)
-    print(f"[Baseline] RF    — acc={rf_metrics['accuracy']:.4f}  "
+    rf_metrics = _evaluate(y_test_eff, rf_pred, rf_prob, le)
+    print(f"[Baseline] RF (Window-level)  — acc={rf_metrics['accuracy']:.4f}  "
           f"F1={rf_metrics['f1_macro']:.4f}  "
           f"AUC={rf_metrics['auc']:.4f}")
+
+    # ------------------------------------------------------------------
+    # 6c. Trial-level Majority Voting (if windowed)
+    # ------------------------------------------------------------------
+    if use_windowing and n_windows_per_trial > 1:
+        svm_preds_by_trial = svm_pred.reshape(-1, n_windows_per_trial)
+        svm_trial_preds = (np.mean(svm_preds_by_trial == 1, axis=1) >= 0.5).astype(int)
+        svm_metrics["trial_accuracy"] = float(accuracy_score(y_test, svm_trial_preds))
+        svm_metrics["trial_f1_macro"] = float(f1_score(y_test, svm_trial_preds, average="macro", zero_division=0))
+
+        rf_preds_by_trial = rf_pred.reshape(-1, n_windows_per_trial)
+        rf_trial_preds = (np.mean(rf_preds_by_trial == 1, axis=1) >= 0.5).astype(int)
+        rf_metrics["trial_accuracy"] = float(accuracy_score(y_test, rf_trial_preds))
+        rf_metrics["trial_f1_macro"] = float(f1_score(y_test, rf_trial_preds, average="macro", zero_division=0))
+
+        print(f"[Baseline] Trial Majority Vote — SVM acc: {svm_metrics['trial_accuracy']:.4f}, RF acc: {rf_metrics['trial_accuracy']:.4f}")
 
     # ------------------------------------------------------------------
     # 7. Save results

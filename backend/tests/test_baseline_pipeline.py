@@ -47,6 +47,7 @@ from snn_ai_optimizer.features.eeg_features import (
     BANDS,
     N_FEATURES,
     extract_band_powers,
+    extract_windowed_band_powers,
     feature_names,
 )
 
@@ -241,3 +242,59 @@ def test_extract_band_powers_wrong_ndim():
     X_2d = np.zeros((32, 8064))  # missing trial dimension
     with pytest.raises(ValueError, match="3-dimensional"):
         extract_band_powers(X_2d)
+
+
+# ---------------------------------------------------------------------------
+# Test 14: extract_windowed_band_powers output shape (N * 29, 128)
+# ---------------------------------------------------------------------------
+
+def test_extract_windowed_band_powers_shape():
+    X = _make_raw_eeg(n_trials=3)
+    feats, n_win = extract_windowed_band_powers(X, window_sec=4.0, step_sec=2.0)
+    assert n_win == 29
+    assert feats.shape == (3 * 29, 128)
+    assert feats.dtype == np.float64
+
+
+# ---------------------------------------------------------------------------
+# Test 15: extract_windowed_band_powers with labels
+# ---------------------------------------------------------------------------
+
+def test_extract_windowed_band_powers_with_labels():
+    X = _make_raw_eeg(n_trials=4)
+    y = np.array([0, 1, 0, 1])
+    feats, y_win, n_win = extract_windowed_band_powers(X, y=y, window_sec=4.0, step_sec=2.0)
+    assert n_win == 29
+    assert feats.shape == (4 * 29, 128)
+    assert len(y_win) == 4 * 29
+    # Each label should be repeated exactly 29 times
+    for i, orig_label in enumerate(y):
+        chunk = y_win[i * 29 : (i + 1) * 29]
+        assert np.all(chunk == orig_label)
+
+
+# ---------------------------------------------------------------------------
+# Test 16: extract_windowed_band_powers no NaN or Inf
+# ---------------------------------------------------------------------------
+
+def test_extract_windowed_band_powers_no_nan_inf():
+    X = _make_raw_eeg(n_trials=2)
+    feats, _ = extract_windowed_band_powers(X)
+    assert not np.isnan(feats).any()
+    assert not np.isinf(feats).any()
+    assert (feats >= 0.0).all()
+
+
+# ---------------------------------------------------------------------------
+# Test 17: extract_windowed_band_powers raises on invalid dimensions
+# ---------------------------------------------------------------------------
+
+def test_extract_windowed_band_powers_invalid_dims():
+    X_bad_ch = _make_raw_eeg(n_trials=2, n_channels=14)
+    with pytest.raises(ValueError, match="32"):
+        extract_windowed_band_powers(X_bad_ch)
+
+    X_short = np.random.randn(2, 32, 200).astype(np.float32)
+    with pytest.raises(ValueError):
+        extract_windowed_band_powers(X_short, window_sec=4.0)
+
