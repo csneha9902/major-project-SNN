@@ -138,9 +138,11 @@ async def get_benchmark_summary():
     """
     baseline_path = Path("results/baseline/metrics.json")
     snn_path = Path("results/snn/metrics.json")
+    report_path = Path("results/benchmark_report.json")
 
     baseline_metrics = None
     snn_metrics = None
+    report_data = None
 
     if baseline_path.exists():
         try:
@@ -154,11 +156,19 @@ async def get_benchmark_summary():
         except Exception:
             pass
 
+    if report_path.exists():
+        try:
+            report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
     return {
         "baseline": baseline_metrics,
         "snn": snn_metrics,
+        "report": report_data,
         "has_baseline": baseline_metrics is not None,
         "has_snn": snn_metrics is not None,
+        "has_report": report_data is not None,
     }
 
 @app.get("/results/history")

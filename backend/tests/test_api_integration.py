@@ -123,11 +123,14 @@ def test_benchmark_summary_endpoint_structure(client):
     data = res.json()
     assert "baseline" in data
     assert "snn" in data
+    assert "report" in data
     assert "has_baseline" in data
     assert "has_snn" in data
-    # Type integrity: baseline and snn must be dict or None
+    assert "has_report" in data
+    # Type integrity: baseline, snn, report must be dict or None
     assert data["baseline"] is None or isinstance(data["baseline"], dict)
     assert data["snn"] is None or isinstance(data["snn"], dict)
+    assert data["report"] is None or isinstance(data["report"], dict)
 
 
 def test_results_history_no_hardcoded_dummy_runs(client, monkeypatch, tmp_path):
