@@ -1,23 +1,13 @@
 uvicorn[standard]
 fastapi
+python-multipart
 click
 numpy
 pandas
 scikit-learn
 torch
 mne
-nibabel
 requests
-# Auth & OAuth
-python-jose[cryptography]
-python-multipart
-authlib
-# PDF Export
-reportlab
-Pillow
 spikingjelly
 matplotlib
 scipy
-email-validator
-passlib
-bcrypt==4.0.1

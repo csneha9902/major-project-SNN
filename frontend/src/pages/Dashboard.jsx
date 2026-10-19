@@ -9,10 +9,8 @@ import SessionSummaryPanel from "../components/SessionSummaryPanel";
 import ProgressCalendar from "../components/ProgressCalendar";
 import UserOnboardingHub from "../components/UserOnboardingHub";
 import { useDataStream } from "../hooks/useDataStream";
-import { useAuth } from "../context/AuthContext";
 import GlowButton from "../components/ui/GlowButton";
-import EmailReportModal from "../components/EmailReportModal";
-import { Download, Sparkles, Activity, FileText, CheckCircle2, RotateCcw, Mail } from "lucide-react";
+import { Sparkles, Activity, FileText, CheckCircle2, RotateCcw } from "lucide-react";
 import "../App.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -29,10 +27,12 @@ const formatTimestamp = (ts) => {
 
 export default function Dashboard() {
   const { frame, running, startSimulation, stopSimulation } = useDataStream();
-  const { user, logout, getAuthHeaders } = useAuth();
   const navigate = useNavigate();
+  const user = { name: "EEG SNN Researcher", role: "researcher" };
+  const logout = () => navigate("/");
+  const getAuthHeaders = () => ({});
 
-  const userRole = localStorage.getItem('user_role') || 'student';
+  const userRole = localStorage.getItem('user_role') || 'researcher';
 
   // Data Source mode: 'none' | 'file' | 'stream'
   const [dataSource, setDataSource] = useState('none');
@@ -41,7 +41,6 @@ export default function Dashboard() {
   const [sourceMetadata, setSourceMetadata] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   // Active chart & state data
   const [chartData, setChartData] = useState([]);
@@ -129,27 +128,6 @@ export default function Dashboard() {
     }
   }, [frame, running, dataSource]);
 
-  // Export PDF handler
-  const handleExportPDF = async () => {
-    if (!uploadId) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/analysis/${uploadId}/export-pdf`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error('Failed to generate PDF');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `cognitive_analysis_${uploadId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Failed to export PDF: ' + err.message);
-    }
-  };
 
   // Calculate current live/file metrics
   const lastPoint = chartData[chartData.length - 1];
@@ -263,14 +241,6 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <GlowButton variant="cyan" onClick={() => setEmailModalOpen(true)} className="text-xs py-2 px-3">
-                  <Mail size={14} />
-                  <span>Email Report</span>
-                </GlowButton>
-                <GlowButton variant="success" onClick={handleExportPDF} className="text-xs py-2 px-3">
-                  <Download size={14} />
-                  <span>Download PDF</span>
-                </GlowButton>
                 <GlowButton variant="ghost" onClick={handleSwitchSource} className="text-xs py-2 px-3">
                   <RotateCcw size={14} />
                   <span>Upload Different File</span>
@@ -279,14 +249,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Email Report Modal */}
-          <EmailReportModal
-            isOpen={emailModalOpen}
-            onClose={() => setEmailModalOpen(false)}
-            uploadId={uploadId}
-            filename={sourceMetadata?.filename}
-            defaultRecipientName={user?.name || "Patient"}
-          />
 
           <div className="main-content">
             <div className="left-section">

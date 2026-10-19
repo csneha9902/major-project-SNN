@@ -22,7 +22,7 @@ def generate_feedback() -> dict:
     auc = max(base.get("auc", 0) or 0.0, snn_m.get("auc", 0) or 0.0)
 
     if acc < 0.6:
-        tips.append("Accuracy is low; consider collecting more samples or stronger features (e.g., EEG band-power, MRI ROIs).")
+        tips.append("Accuracy is low; consider collecting more samples or stronger features (e.g., EEG band-power, spectral ratios).")
         actions.append("Enable feature engineering: delta/theta/alpha/beta powers; z-score per subject.")
     else:
         tips.append("Accuracy is reasonable—try tuning hyperparameters and adding cross-validation.")
