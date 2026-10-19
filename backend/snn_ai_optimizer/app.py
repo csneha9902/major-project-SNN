@@ -136,27 +136,38 @@ async def get_benchmark_summary():
     Returns real held-out evaluation metrics from baseline and SNN pipelines.
     Never fabricates metrics: returns null for missing models (AGENTS.md Rules 1 & 2).
     """
-    baseline_path = Path("results/baseline/metrics.json")
-    snn_path = Path("results/snn/metrics.json")
-    report_path = Path("results/benchmark_report.json")
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    
+    def _resolve_results_path(*parts: str) -> Optional[Path]:
+        p1 = repo_root / "results" / Path(*parts)
+        if p1.exists():
+            return p1
+        p2 = Path("results") / Path(*parts)
+        if p2.exists():
+            return p2
+        return None
+
+    baseline_path = _resolve_results_path("baseline", "metrics.json")
+    snn_path = _resolve_results_path("snn", "metrics.json")
+    report_path = _resolve_results_path("benchmark_report.json")
 
     baseline_metrics = None
     snn_metrics = None
     report_data = None
 
-    if baseline_path.exists():
+    if baseline_path and baseline_path.exists():
         try:
             baseline_metrics = json.loads(baseline_path.read_text(encoding="utf-8"))
         except Exception:
             pass
 
-    if snn_path.exists():
+    if snn_path and snn_path.exists():
         try:
             snn_metrics = json.loads(snn_path.read_text(encoding="utf-8"))
         except Exception:
             pass
 
-    if report_path.exists():
+    if report_path and report_path.exists():
         try:
             report_data = json.loads(report_path.read_text(encoding="utf-8"))
         except Exception:
