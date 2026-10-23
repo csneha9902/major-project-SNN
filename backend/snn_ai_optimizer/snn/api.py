@@ -20,6 +20,29 @@ from snn_ai_optimizer.snn.inference import (
 
 router = APIRouter(prefix="/api/snn", tags=["snn"])
 
+_training_state: Dict[str, Any] = {
+    "status": "idle",
+    "message": "Model ready for inference or training.",
+    "error": None,
+}
+
+
+def _run_training_worker() -> None:
+    global _training_state
+    _training_state["status"] = "running"
+    _training_state["message"] = "Real DEAP SNN training pipeline executing in background..."
+    _training_state["error"] = None
+    try:
+        results = deap_snn_run()
+        acc = results.get("accuracy", 0.0)
+        f1 = results.get("f1_macro", 0.0)
+        _training_state["status"] = "completed"
+        _training_state["message"] = f"Training finished successfully! Held-out Accuracy: {acc:.2%}, F1: {f1:.4f}."
+    except Exception as exc:
+        _training_state["status"] = "error"
+        _training_state["error"] = str(exc)
+        _training_state["message"] = f"Training error: {str(exc)}"
+
 
 class PredictRequest(BaseModel):
     # Option A: Direct 128 Welch PSD band-power features
@@ -40,7 +63,15 @@ class TrainResponse(BaseModel):
 @router.post("/train", response_model=TrainResponse)
 async def train_model(background_tasks: BackgroundTasks):
     """Triggers real DEAP SNN model training in the background."""
-    background_tasks.add_task(deap_snn_run)
+    global _training_state
+    if _training_state["status"] == "running":
+        return {
+            "message": "SNN training is already running in background.",
+            "status": "running",
+        }
+    _training_state["status"] = "running"
+    _training_state["message"] = "Initiating real DEAP SNN training process..."
+    background_tasks.add_task(_run_training_worker)
     return {
         "message": "Real DEAP SNN training initiated in background. Output will be saved to results/snn/.",
         "status": "started",
@@ -58,6 +89,7 @@ async def model_status():
         "is_active_in_memory": engine.is_model_loaded,
         "input_features": 128,
         "architecture": "DEAPArousalSNN (SpikingJelly multi-step LIF)",
+        "training_state": _training_state,
     }
 
 

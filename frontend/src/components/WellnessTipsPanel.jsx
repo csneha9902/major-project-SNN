@@ -1,8 +1,7 @@
 import { Sun, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import GlowButton from './ui/GlowButton';
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { safeFetchJson } from '../api';
 
 export default function WellnessTipsPanel({ currentState }) {
   const [tip, setTip] = useState('');
@@ -11,11 +10,10 @@ export default function WellnessTipsPanel({ currentState }) {
   const fetchTip = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/wellness-tip?state=${encodeURIComponent(currentState || 'Neutral')}`);
-      const data = await res.json();
+      const data = await safeFetchJson(`/api/wellness-tip?state=${encodeURIComponent(currentState || 'Neutral')}`);
       setTip(data?.tip || '');
     } catch (err) {
-      console.error('Failed to fetch tip:', err);
+      console.warn('Failed to fetch tip:', err.message);
     }
     setLoading(false);
   };

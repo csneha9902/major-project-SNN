@@ -1,27 +1,110 @@
 {
+  "run_timestamp_utc": "2026-10-23T14:58:20.739467+00:00",
   "dataset": "DEAP",
-  "label": "arousal (threshold=5)",
-  "preprocessing": "Welch PSD band-power (128-dim)",
-  "random_seed": 42,
-  "epochs": 10,
-  "lr": 0.001,
-  "time_steps": 50,
-  "benchmarks": {
-    "svm_rbf": {
-      "accuracy": 0.5313218390804598,
-      "f1": 0.5312363341476856,
-      "auc": 0.48342360016356306
+  "n_subjects_total": 12,
+  "label_definition": "arousal <= 5.0 -> LOW_AROUSAL, arousal > 5.0 -> HIGH_AROUSAL",
+  "preprocessing": {
+    "feature_extraction": "Welch PSD band-power (4 bands x 32 channels)",
+    "n_features": 128,
+    "bands": {
+      "delta": [
+        1.0,
+        4.0
+      ],
+      "theta": [
+        4.0,
+        8.0
+      ],
+      "alpha": [
+        8.0,
+        13.0
+      ],
+      "beta": [
+        13.0,
+        30.0
+      ]
     },
-    "random_forest": {
-      "accuracy": 0.5545977011494253,
-      "f1": 0.5372389655429197,
-      "auc": 0.4534381540506078
-    },
-    "deap_arousal_snn": {
-      "accuracy": 0.525,
-      "f1": 0.5247425217734638,
-      "auc": 0.5469754615007989
+    "band_order": [
+      "delta",
+      "theta",
+      "alpha",
+      "beta"
+    ],
+    "sampling_rate_hz": 128,
+    "scaler": "StandardScaler + MinMaxScaler -> [0, 1] (fitted on train only)",
+    "encoding": "Poisson rate coding, T=50 time-steps",
+    "segmentation": {
+      "use_windowing": true,
+      "window_sec": 4.0,
+      "step_sec": 2.0,
+      "n_windows_per_trial": 29,
+      "n_train_samples": 10440,
+      "n_test_samples": 3480
     }
   },
-  "timestamp": "2026-10-19T10:05:50Z"
+  "split": {
+    "method": "subject_wise (GroupShuffleSplit)",
+    "test_size": 0.25,
+    "random_seed": 42,
+    "train_subject_ids": [
+      "s02",
+      "s03",
+      "s05",
+      "s07",
+      "s08",
+      "s09",
+      "s11",
+      "s15",
+      "s25"
+    ],
+    "test_subject_ids": [
+      "s01",
+      "s16",
+      "s22"
+    ],
+    "n_train_subjects": 9,
+    "n_test_subjects": 3,
+    "n_train_trials": 360,
+    "n_test_trials": 120
+  },
+  "model_config": {
+    "class": "DEAPArousalSNN",
+    "layers": [
+      128,
+      256,
+      128,
+      2
+    ],
+    "surrogate": "ATan",
+    "step_mode": "m",
+    "time_steps": 50,
+    "dropout": 0.0,
+    "use_plif": false
+  },
+  "training": {
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "epochs": 15,
+    "batch_size": 32,
+    "subtract_baseline": false,
+    "use_focal_loss": false,
+    "augment_train": false,
+    "final_train_loss": 0.6633055944095626,
+    "final_train_acc": 0.603735632183908
+  },
+  "evaluation": {
+    "partition": "held-out test set only",
+    "metrics": {
+      "accuracy": 0.5261494252873563,
+      "f1_macro": 0.5255174950189225,
+      "auc": 0.5531817124087356,
+      "classification_report": "              precision    recall  f1-score   support\n\n LOW_AROUSAL       0.47      0.65      0.54      1508\nHIGH_AROUSAL       0.62      0.43      0.51      1972\n\n    accuracy                           0.53      3480\n   macro avg       0.54      0.54      0.53      3480\nweighted avg       0.55      0.53      0.52      3480\n",
+      "use_windowing": true,
+      "n_windows_per_trial": 29,
+      "n_train_samples": 10440,
+      "n_test_samples": 3480,
+      "trial_accuracy": 0.525,
+      "trial_f1_macro": 0.5223130106851037
+    }
+  }
 }

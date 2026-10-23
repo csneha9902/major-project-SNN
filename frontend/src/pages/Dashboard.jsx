@@ -12,9 +12,8 @@ import { useDataStream } from "../hooks/useDataStream";
 import SNNSpikeRasterVisualizer from "../components/SNNSpikeRasterVisualizer";
 import GlowButton from "../components/ui/GlowButton";
 import { Sparkles, Activity, FileText, CheckCircle2, RotateCcw, Zap } from "lucide-react";
+import { API_BASE, safeFetchJson } from "../api";
 import "../App.css";
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const formatTimestamp = (ts) => {
   if (!ts) return "00:00";
@@ -53,11 +52,9 @@ export default function Dashboard() {
   const loadAnalysis = async (id) => {
     setLoadingAnalysis(true);
     try {
-      const res = await fetch(`${API_BASE}/api/analysis/${id}`, {
+      const data = await safeFetchJson(`/api/analysis/${id}`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error('Failed to load file analysis');
-      const data = await res.json();
       setAnalysisData(data);
       setUploadId(id);
       setSourceMetadata({
@@ -155,9 +152,8 @@ export default function Dashboard() {
     let active = true;
     const fetchRec = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/recommend?state=${encodeURIComponent(displayState)}`);
-        if (res.ok && active) {
-          const rec = await res.json();
+        const rec = await safeFetchJson(`/api/recommend?state=${encodeURIComponent(displayState)}`);
+        if (rec && active) {
           setBackendRec(rec);
         }
       } catch (e) {

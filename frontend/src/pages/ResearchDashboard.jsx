@@ -24,9 +24,8 @@ import GlassCard from '../components/ui/GlassCard';
 import GlowButton from '../components/ui/GlowButton';
 import MetricBadge from '../components/ui/MetricBadge';
 import SNNSpikeRasterVisualizer from '../components/SNNSpikeRasterVisualizer';
+import { API_BASE, safeFetchJson } from '../api';
 import '../App.css';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function ResearchDashboard() {
   const navigate = useNavigate();
@@ -42,21 +41,21 @@ export default function ResearchDashboard() {
   const fetchBenchmarkSummary = useCallback(async () => {
     setLoading(true);
     try {
-      const [resSummary, resStatus] = await Promise.all([
-        fetch(`${API_BASE}/api/benchmark/summary`),
-        fetch(`${API_BASE}/api/snn/status`)
+      const [dataSummary, dataStatus] = await Promise.all([
+        safeFetchJson('/api/benchmark/summary').catch(e => {
+          console.warn('Benchmark summary fetch warning:', e.message);
+          return null;
+        }),
+        safeFetchJson('/api/snn/status').catch(e => {
+          console.warn('SNN status fetch warning:', e.message);
+          return null;
+        })
       ]);
 
-      if (resSummary.ok) {
-        const data = await resSummary.json();
-        setBenchmarkData(data);
-      }
-      if (resStatus.ok) {
-        const status = await resStatus.json();
-        setSnnStatus(status);
-      }
+      if (dataSummary) setBenchmarkData(dataSummary);
+      if (dataStatus) setSnnStatus(dataStatus);
     } catch (err) {
-      console.warn('Error loading research benchmarks:', err);
+      console.warn('Error loading research benchmarks:', err.message);
     } finally {
       setLoading(false);
     }
@@ -74,14 +73,18 @@ export default function ResearchDashboard() {
     setTrainingTriggered(true);
     setTrainingMessage("Initiating DEAP SNN training process...");
     try {
-      const res = await fetch(`${API_BASE}/api/snn/train`, { method: 'POST' });
-      const data = await res.json();
+      const data = await safeFetchJson('/api/snn/train', { method: 'POST' });
       setTrainingMessage(data.message || "Training job started in background.");
       setTimeout(() => {
         fetchBenchmarkSummary();
       }, 3000);
     } catch (err) {
-      setTrainingMessage("Training request failed: " + err.message);
+      setTrainingMessage("Training request: " + err.message);
+    } finally {
+      // Allow re-triggering if there was an error or after dispatch
+      setTimeout(() => {
+        setTrainingTriggered(false);
+      }, 4000);
     }
   };
 

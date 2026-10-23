@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Brain, ArrowRight, Activity, ShieldCheck, Zap, CheckCircle2, Sparkles, TrendingUp, Flame } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { safeFetchJson } from '../api';
 
 export default function TaskRecommendationCard({ recommendation, currentState, nextState }) {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
@@ -28,7 +27,7 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
     try {
       setSubmittingFeedback(true);
       const targetNextState = nextState || currentState || state;
-      const res = await fetch(`${API_BASE}/feedback`, {
+      const body = await safeFetchJson('/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -38,16 +37,13 @@ export default function TaskRecommendationCard({ recommendation, currentState, n
           next_state: targetNextState,
         })
       });
-      if (res.ok) {
-        const body = await res.json();
-        if (body.update) {
-          setLastUpdate(body.update);
-        }
-        setFeedbackSuccess(`Bellman TD: ${label} (${rewardVal > 0 ? '+' : ''}${rewardVal})`);
-        setTimeout(() => setFeedbackSuccess(null), 5000);
+      if (body?.update) {
+        setLastUpdate(body.update);
       }
+      setFeedbackSuccess(`Bellman TD: ${label} (${rewardVal > 0 ? '+' : ''}${rewardVal})`);
+      setTimeout(() => setFeedbackSuccess(null), 5000);
     } catch (err) {
-      console.warn("Feedback update failed:", err);
+      console.warn("Feedback update note:", err.message);
     } finally {
       setSubmittingFeedback(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -12,6 +12,7 @@ import {
   HeartPulse,
   RefreshCw
 } from 'lucide-react';
+import { safeFetchJson } from '../api';
 
 // Helper to format date strings YYYY-MM-DD
 const formatDateKey = (d) => {
@@ -67,6 +68,30 @@ export default function ProgressCalendar() {
   const [selectedDate, setSelectedDate] = useState(() => todayState);
   const [progressLogs, setProgressLogs] = useState(() => getInitialProgressLogs(todayState));
   const [customNote, setCustomNote] = useState('');
+
+  // Fetch real persistent activity history from backend on mount
+  const fetchCalendarHistory = useCallback(async () => {
+    try {
+      const data = await safeFetchJson('/api/progress/history');
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+        setProgressLogs(prev => {
+          const merged = { ...prev, ...data };
+          try {
+            localStorage.setItem('snn_learning_sessions', JSON.stringify(merged));
+          } catch (e) {
+            console.warn('Local storage sync warning:', e);
+          }
+          return merged;
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch remote calendar history, using local cache:', err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCalendarHistory();
+  }, [fetchCalendarHistory]);
 
   // Framework to automatically trigger date rollover after 12:00 AM (midnight)
   useEffect(() => {
@@ -201,17 +226,25 @@ export default function ProgressCalendar() {
       }
       return updated;
     });
+
+    // Persist to backend
+    safeFetchJson('/api/progress/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: selectedKey, state: newState }),
+    }).catch(err => console.warn('Could not persist date state to backend:', err.message));
   };
 
   const handleAddNote = (e) => {
     e.preventDefault();
     if (selectedIsFuture || !customNote.trim()) return;
+    const noteText = customNote.trim();
     setProgressLogs(prev => {
       const updated = {
         ...prev,
         [selectedKey]: {
           ...selectedLog,
-          notes: customNote.trim()
+          notes: noteText
         }
       };
       try {
@@ -221,6 +254,14 @@ export default function ProgressCalendar() {
       }
       return updated;
     });
+
+    // Persist to backend
+    safeFetchJson('/api/progress/note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: selectedKey, note: noteText }),
+    }).catch(err => console.warn('Could not persist observation note to backend:', err.message));
+
     setCustomNote('');
   };
 

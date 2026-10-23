@@ -13,6 +13,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      // Forward /feedback to FastAPI backend
+      '/feedback': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
       // Forward /auth API calls (like /auth/token, /auth/me) but let React Router handle /auth/callback
       '/auth': {
         target: 'http://127.0.0.1:8000',

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Upload, File, X, Sparkles, Activity } from 'lucide-react';
 import GlowButton from './ui/GlowButton';
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
+import { API_BASE, safeFetchJson } from '../api';
 
 export default function FileUpload({ onUploadSuccess }) {
   const [dragging, setDragging] = useState(false);
@@ -19,13 +18,10 @@ export default function FileUpload({ onUploadSuccess }) {
 
   const fetchDemoSamples = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/demo-samples`);
-      if (res.ok) {
-        const data = await res.json();
-        setDemoSamples(data.samples || []);
-      }
+      const data = await safeFetchJson('/api/demo-samples');
+      setDemoSamples(data.samples || []);
     } catch (err) {
-      console.warn("Failed to fetch demo samples:", err);
+      console.warn("Failed to fetch demo samples:", err.message);
     }
   };
 
@@ -78,20 +74,14 @@ export default function FileUpload({ onUploadSuccess }) {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch(`${API_BASE}/api/upload`, {
+      const data = await safeFetchJson('/api/upload', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: formData,
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await res.json();
       setSelectedFile(null);
-      if (onUploadSuccess) {
+      if (onUploadSuccess && data.upload_id) {
         onUploadSuccess(data.upload_id);
       }
     } catch (err) {

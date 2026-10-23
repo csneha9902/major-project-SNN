@@ -1,12 +1,11 @@
 {
   "accuracy": 0.525,
-  "f1_macro": 0.5247425217734638,
-  "auc": 0.5469754615007989,
-  "classification_report": "              precision    recall  f1-score   support\n\n LOW_AROUSAL       0.46      0.58      0.51      1508\nHIGH_AROUSAL       0.60      0.48      0.54      1972\n\n    accuracy                           0.53      3480\n   macro avg       0.53      0.53      0.52      3480\nweighted avg       0.54      0.53      0.53      3480\n",
+  "f1_macro": 0.5223130106851037,
+  "auc": 0.5531817124087356,
+  "window_accuracy": 0.5261494252873563,
+  "window_f1_macro": 0.5255174950189225,
   "use_windowing": true,
   "n_windows_per_trial": 29,
   "n_train_samples": 10440,
-  "n_test_samples": 3480,
-  "trial_accuracy": 0.5416666666666666,
-  "trial_f1_macro": 0.5401017350707268
+  "n_test_samples": 3480
 }

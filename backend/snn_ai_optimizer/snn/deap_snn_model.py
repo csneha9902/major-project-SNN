@@ -71,11 +71,15 @@ class DEAPArousalSNN(nn.Module):
         tau: float = 2.0,
         v_threshold: float = 1.0,
         v_reset: float = 0.0,
+        dropout: float = 0.0,
+        use_plif: bool = False,
     ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dims = tuple(hidden_dims)
         self.num_classes = num_classes
+        self.dropout = dropout
+        self.use_plif = use_plif
 
         layers = []
         prev_dim = input_dim
@@ -83,6 +87,46 @@ class DEAPArousalSNN(nn.Module):
         for h_dim in hidden_dims:
             if HAS_SPIKINGJELLY:
                 layers.append(layer.Linear(prev_dim, h_dim))
+                if use_plif:
+                    layers.append(
+                        neuron.ParametricLIFNode(
+                            init_tau=tau,
+                            v_threshold=v_threshold,
+                            v_reset=v_reset,
+                            surrogate_function=surrogate.ATan(),
+                        )
+                    )
+                else:
+                    layers.append(
+                        neuron.LIFNode(
+                            tau=tau,
+                            v_threshold=v_threshold,
+                            v_reset=v_reset,
+                            surrogate_function=surrogate.ATan(),
+                        )
+                    )
+                if dropout > 0.0:
+                    layers.append(layer.Dropout(dropout))
+            else:
+                layers.append(nn.Linear(prev_dim, h_dim))
+                layers.append(FallbackLIF())
+                if dropout > 0.0:
+                    layers.append(nn.Dropout(dropout))
+            prev_dim = h_dim
+
+        # Final readout classification layer
+        if HAS_SPIKINGJELLY:
+            layers.append(layer.Linear(prev_dim, num_classes))
+            if use_plif:
+                layers.append(
+                    neuron.ParametricLIFNode(
+                        init_tau=tau,
+                        v_threshold=v_threshold,
+                        v_reset=v_reset,
+                        surrogate_function=surrogate.ATan(),
+                    )
+                )
+            else:
                 layers.append(
                     neuron.LIFNode(
                         tau=tau,
@@ -91,22 +135,6 @@ class DEAPArousalSNN(nn.Module):
                         surrogate_function=surrogate.ATan(),
                     )
                 )
-            else:
-                layers.append(nn.Linear(prev_dim, h_dim))
-                layers.append(FallbackLIF())
-            prev_dim = h_dim
-
-        # Final readout classification layer
-        if HAS_SPIKINGJELLY:
-            layers.append(layer.Linear(prev_dim, num_classes))
-            layers.append(
-                neuron.LIFNode(
-                    tau=tau,
-                    v_threshold=v_threshold,
-                    v_reset=v_reset,
-                    surrogate_function=surrogate.ATan(),
-                )
-            )
         else:
             layers.append(nn.Linear(prev_dim, num_classes))
             layers.append(FallbackLIF())
@@ -194,25 +222,36 @@ class DEAPArousalSNN(nn.Module):
             functional.set_step_mode(self.net, "s")
             self.reset()
 
+            # Dynamically identify (linear, neuron) stages regardless of dropout/auxiliary layers
+            stages = []
+            cur_lin = None
+            for mod in self.net:
+                if isinstance(mod, (layer.Linear, nn.Linear)):
+                    cur_lin = mod
+                elif isinstance(mod, (neuron.BaseNode, FallbackLIF)):
+                    if cur_lin is not None:
+                        stages.append((cur_lin, mod))
+                        cur_lin = None
+
             for t in range(T):
                 xt = x_dev[t, 0:1, :]
                 in_sample = xt[0, :n_sampled_neurons].detach().cpu().numpy().astype(int).tolist()
                 in_spikes.append(in_sample)
 
                 # Layer 1
-                h1 = self.net[0](xt)
-                s1 = self.net[1](h1)
-                v1 = getattr(self.net[1], "v", torch.zeros_like(h1))
+                h1 = stages[0][0](xt)
+                s1 = stages[0][1](h1)
+                v1 = getattr(stages[0][1], "v", torch.zeros_like(h1))
 
                 # Layer 2
-                h2 = self.net[2](s1)
-                s2 = self.net[3](h2)
-                v2 = getattr(self.net[3], "v", torch.zeros_like(h2))
+                h2 = stages[1][0](s1)
+                s2 = stages[1][1](h2)
+                v2 = getattr(stages[1][1], "v", torch.zeros_like(h2))
 
                 # Output Layer
-                h3 = self.net[4](s2)
-                s3 = self.net[5](h3)
-                v3 = getattr(self.net[5], "v", torch.zeros_like(h3))
+                h3 = stages[2][0](s2)
+                s3 = stages[2][1](h3)
+                v3 = getattr(stages[2][1], "v", torch.zeros_like(h3))
 
                 s1_arr = s1[0].detach().cpu().numpy()
                 v1_arr = v1[0].detach().cpu().numpy()

@@ -25,8 +25,7 @@ import {
 import GlassCard from './ui/GlassCard';
 import GlowButton from './ui/GlowButton';
 import MetricBadge from './ui/MetricBadge';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE, safeFetchJson } from '../api';
 
 /**
  * Custom Tooltip for Membrane Voltage V(t) Chart
@@ -83,13 +82,11 @@ export default function SNNSpikeRasterVisualizer({
     setLoading(true);
     setError(null);
     try {
-      let url = `${API_BASE}/api/snn/neuromorphic-traces?time_steps=50&n_neurons=16`;
+      let endpoint = `/api/snn/neuromorphic-traces?time_steps=50&n_neurons=16`;
       if (currentMetrics?.alpha !== undefined && currentMetrics?.beta !== undefined) {
-        url += `&alpha=${currentMetrics.alpha}&beta=${currentMetrics.beta}`;
+        endpoint += `&alpha=${currentMetrics.alpha}&beta=${currentMetrics.beta}`;
       }
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch neuromorphic traces`);
-      const data = await res.json();
+      const data = await safeFetchJson(endpoint);
       setTracesData(data);
     } catch (err) {
       console.warn('Neuromorphic traces fetch warning:', err.message);

@@ -28,6 +28,13 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Tuple
+import os
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+except Exception:
+    pass
 
 import numpy as np
 import torch
@@ -63,7 +70,8 @@ from snn_ai_optimizer.features.eeg_features import (
 )
 from snn_ai_optimizer.snn.deap_snn_model import DEAPArousalSNN
 
-RESULTS_DIR = Path("results/snn")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+RESULTS_DIR = PROJECT_ROOT / "results" / "snn"
 
 
 def poisson_encode_features(
@@ -98,13 +106,33 @@ def poisson_encode_features(
     return spikes
 
 
+class FocalLoss(nn.Module):
+    """
+    Focal Loss for addressing class imbalance and hard boundary examples.
+    FL(p_t) = -alpha_t * (1 - p_t)^gamma * log(p_t)
+    """
+    def __init__(self, alpha: torch.Tensor | None = None, gamma: float = 2.0):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        ce_loss = nn.functional.cross_entropy(inputs, targets, reduction="none")
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1.0 - pt) ** self.gamma) * ce_loss
+        if self.alpha is not None:
+            alpha_t = self.alpha[targets]
+            focal_loss = alpha_t * focal_loss
+        return focal_loss.mean()
+
+
 def train_and_evaluate_snn(
     X_train_raw: np.ndarray,
     y_train: np.ndarray,
     X_test_raw: np.ndarray,
     y_test: np.ndarray,
     time_steps: int = 50,
-    epochs: int = 30,
+    epochs: int = 15,
     batch_size: int = 32,
     lr: float = 1e-3,
     random_seed: int = 42,
@@ -112,6 +140,13 @@ def train_and_evaluate_snn(
     use_windowing: bool = True,
     window_sec: float = 4.0,
     step_sec: float = 2.0,
+    subtract_baseline: bool = False,
+    use_focal_loss: bool = False,
+    use_class_weights: bool = False,
+    dropout: float = 0.0,
+    use_plif: bool = False,
+    weight_decay: float = 0.0,
+    augment_train: bool = False,
 ) -> Tuple[DEAPArousalSNN, Dict[str, Any], Dict[str, Any]]:
     """
     Train and evaluate DEAPArousalSNN on raw EEG arrays with no data leakage.
@@ -150,10 +185,20 @@ def train_and_evaluate_snn(
     # 1. Feature extraction
     if use_windowing:
         X_train_feats, y_train_eff, n_win_tr = extract_windowed_band_powers(
-            X_train_raw, y=y_train, window_sec=window_sec, step_sec=step_sec, fs=SAMPLING_RATE
+            X_train_raw,
+            y=y_train,
+            window_sec=window_sec,
+            step_sec=step_sec,
+            fs=SAMPLING_RATE,
+            subtract_baseline=subtract_baseline,
         )
         X_test_feats, y_test_eff, n_win_te = extract_windowed_band_powers(
-            X_test_raw, y=y_test, window_sec=window_sec, step_sec=step_sec, fs=SAMPLING_RATE
+            X_test_raw,
+            y=y_test,
+            window_sec=window_sec,
+            step_sec=step_sec,
+            fs=SAMPLING_RATE,
+            subtract_baseline=subtract_baseline,
         )
         n_windows_per_trial = n_win_te
     else:
@@ -174,11 +219,32 @@ def train_and_evaluate_snn(
     X_test_norm = np.clip(minmax.transform(X_test_scaled), 0.0, 1.0)
 
     # 3. Model setup
-    model = DEAPArousalSNN(input_dim=N_FEATURES, hidden_dims=(256, 128), num_classes=2)
+    model = DEAPArousalSNN(
+        input_dim=N_FEATURES,
+        hidden_dims=(256, 128),
+        num_classes=2,
+        dropout=dropout,
+        use_plif=use_plif,
+    )
     model.to(dev)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # Optional class weights to counterbalance DEAP arousal label skew
+    if use_class_weights or (use_focal_loss and use_class_weights):
+        classes, counts = np.unique(y_train_eff, return_counts=True)
+        weights = len(y_train_eff) / (len(classes) * counts.astype(np.float32))
+        class_weights_t = torch.tensor(weights, dtype=torch.float32).to(dev)
+    else:
+        class_weights_t = None
+
+    if use_focal_loss:
+        criterion = FocalLoss(alpha=class_weights_t, gamma=2.0)
+    elif class_weights_t is not None:
+        criterion = nn.CrossEntropyLoss(weight=class_weights_t)
+    else:
+        criterion = nn.CrossEntropyLoss()
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(epochs, 1), eta_min=1e-5)
 
     # PyTorch Dataset for mini-batching
     train_dataset = TensorDataset(
@@ -199,8 +265,13 @@ def train_and_evaluate_snn(
 
         for batch_x, batch_y in train_loader:
             batch_x, batch_y = batch_x.to(dev), batch_y.to(dev)
+            if augment_train:
+                jitter = torch.randn_like(batch_x) * 0.015
+                rates = torch.clamp(batch_x + jitter, 0.0, 1.0)
+            else:
+                rates = batch_x
             # Encode mini-batch to Poisson spikes: (T, B, N_FEATURES)
-            spikes = torch.bernoulli(batch_x.unsqueeze(0).expand(time_steps, -1, -1))
+            spikes = torch.bernoulli(rates.unsqueeze(0).expand(time_steps, -1, -1))
 
             model.reset()
             optimizer.zero_grad()
@@ -216,6 +287,7 @@ def train_and_evaluate_snn(
             correct += (preds == batch_y).sum().item()
             total += len(batch_y)
 
+        scheduler.step()
         avg_loss = epoch_loss / total
         avg_acc = correct / total
         history["train_loss"].append(avg_loss)
@@ -275,10 +347,17 @@ def deap_snn_run(
     test_size: float = 0.25,
     random_seed: int = 42,
     time_steps: int = 50,
-    epochs: int = 30,
+    epochs: int = 15,
     batch_size: int = 32,
     lr: float = 1e-3,
     use_windowing: bool = True,
+    subtract_baseline: bool = False,
+    use_focal_loss: bool = False,
+    use_class_weights: bool = False,
+    dropout: float = 0.0,
+    use_plif: bool = False,
+    weight_decay: float = 0.0,
+    augment_train: bool = False,
 ) -> Dict[str, Any]:
     """
     Execute full DEAP SNN training and save reproducible provenance results.
@@ -323,7 +402,7 @@ def deap_snn_run(
     X_test_raw = split["X_test"]
     y_test = split["y_test"]
 
-    print(f"[SNN Pipeline] Training SNN on {len(y_train)} trials ({split['n_train_subjects']} subjects, windowing={use_windowing})...")
+    print(f"[SNN Pipeline] Training SNN on {len(y_train)} trials ({split['n_train_subjects']} subjects, windowing={use_windowing}, baseline_sub={subtract_baseline}, focal_loss={use_focal_loss})...")
     model, test_metrics, history = train_and_evaluate_snn(
         X_train_raw=X_train_raw,
         y_train=y_train,
@@ -335,6 +414,13 @@ def deap_snn_run(
         lr=lr,
         random_seed=random_seed,
         use_windowing=use_windowing,
+        subtract_baseline=subtract_baseline,
+        use_focal_loss=use_focal_loss,
+        use_class_weights=use_class_weights,
+        dropout=dropout,
+        use_plif=use_plif,
+        weight_decay=weight_decay,
+        augment_train=augment_train,
     )
 
     if use_windowing and "trial_accuracy" in test_metrics:
@@ -409,12 +495,17 @@ def deap_snn_run(
             "surrogate": "ATan",
             "step_mode": "m",
             "time_steps": time_steps,
+            "dropout": dropout,
+            "use_plif": use_plif,
         },
         "training": {
             "optimizer": "Adam",
             "lr": lr,
             "epochs": epochs,
             "batch_size": batch_size,
+            "subtract_baseline": subtract_baseline,
+            "use_focal_loss": use_focal_loss,
+            "augment_train": augment_train,
             "final_train_loss": history["train_loss"][-1] if history["train_loss"] else None,
             "final_train_acc": history["train_acc"][-1] if history["train_acc"] else None,
         },

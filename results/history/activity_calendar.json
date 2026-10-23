@@ -1,0 +1,17 @@
+{
+  "2026-10-23": {
+    "date": "2026-10-23",
+    "state": "Low Arousal",
+    "label": "Low Arousal Session",
+    "avgBeta": 0.6,
+    "avgAlpha": 0.7,
+    "avgHeartRate": 70,
+    "sessionHours": "4m 15s",
+    "stressSpikes": 2,
+    "breathingBreaks": 0,
+    "snnScore": 88,
+    "notes": "Integration test note",
+    "source": "live_stream",
+    "updated_at": "2026-10-23T20:32:55.454074"
+  }
+}

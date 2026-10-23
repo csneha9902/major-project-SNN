@@ -143,13 +143,25 @@ class SNNInferenceEngine:
             return
 
         try:
-            model = DEAPArousalSNN(input_dim=N_FEATURES, hidden_dims=self.hidden_dims, num_classes=2)
             state_dict = torch.load(self.model_path, map_location=self.device)
+            has_plif = any(k.endswith(".w") for k in state_dict.keys())
+            has_dropout = "net.3.weight" in state_dict
+
+            model = DEAPArousalSNN(
+                input_dim=N_FEATURES,
+                hidden_dims=self.hidden_dims,
+                num_classes=2,
+                dropout=0.15 if has_dropout else 0.0,
+                use_plif=has_plif,
+            )
             model.load_state_dict(state_dict)
             model.to(self.device)
             model.eval()
             self._model = model
-            logger.info(f"[SNNInferenceEngine] Successfully loaded DEAPArousalSNN from '{self.model_path}'.")
+            logger.info(
+                f"[SNNInferenceEngine] Successfully loaded DEAPArousalSNN "
+                f"(PLIF={has_plif}, Dropout={has_dropout}) from '{self.model_path}'."
+            )
         except Exception as exc:
             logger.warning(f"[SNNInferenceEngine] Failed to load model from '{self.model_path}': {exc}")
             self._model = None

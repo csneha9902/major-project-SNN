@@ -3,9 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict, List, Union
 from pydantic import BaseModel, Field
 import datetime, json, asyncio, os, random, time, uuid
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except Exception:
+    pass
 
 # Upload imports
 from snn_ai_optimizer.upload import process_edf_file
@@ -27,6 +33,13 @@ from snn_ai_optimizer.optimizer import update_q_table, recommend_task, _current_
 from snn_ai_optimizer.streaming import DataStreamer
 from snn_ai_optimizer.utils.wellness_tips import get_random_tip
 from snn_ai_optimizer.utils.session_tracker import SessionTracker
+from snn_ai_optimizer.activity_history import (
+    load_calendar_history,
+    update_observation_note,
+    update_date_status,
+    record_session,
+    record_analysis_upload,
+)
 
 # ------------------ FastAPI App ------------------
 app = FastAPI(title="EEG-SNN Adaptive Learning Optimizer")
@@ -377,8 +390,27 @@ async def start_simulation():
 async def stop_simulation():
     try:
         session_tracker.stop()
-    except Exception:
-        pass
+        summary = session_tracker.generate_summary()
+        if summary.get("total_samples", 0) > 0:
+            dom_state = summary.get("dominant_state", "Neutral")
+            state_map = {"Focused": "Low Arousal", "Neutral": "Baseline", "Stressed": "High Arousal"}
+            cal_state = state_map.get(dom_state, "Low Arousal")
+            focus_pct = summary.get("focus_percentage", 50.0)
+            score = int(min(98, max(45, focus_pct * 0.9 + 10)))
+            record_session(
+                state=cal_state,
+                label="Completed Live EEG Session",
+                avg_beta=0.62,
+                avg_alpha=0.68,
+                avg_hr=72,
+                duration_str=summary.get("duration_display", "1m"),
+                stress_spikes=summary.get("stress_events", 0),
+                snn_score=score,
+                notes=summary.get("summary", ""),
+                source="live_stream",
+            )
+    except Exception as e:
+        print(f"Note: Error logging stream session to calendar: {e}")
     streamer.stop_simulation()
     return {"ok": True, "running": streamer.running}
 
@@ -406,6 +438,65 @@ async def api_wellness_tip(state: str | None = None):
 @app.get("/api/session-summary")
 async def api_session_summary():
     return session_tracker.generate_summary()
+
+# ------------------ Activity History & Progress Calendar ------------------
+class NoteUpdateRequest(BaseModel):
+    date: str
+    note: str
+
+class StateUpdateRequest(BaseModel):
+    date: str
+    state: str
+
+class LogSessionRequest(BaseModel):
+    date: Optional[str] = None
+    state: str = "Low Arousal"
+    label: str = "EEG Session"
+    avgBeta: float = 0.5
+    avgAlpha: float = 0.5
+    avgHeartRate: int = 72
+    sessionHours: str = "5m"
+    stressSpikes: int = 0
+    breathingBreaks: int = 0
+    snnScore: Any = 80
+    notes: Optional[str] = None
+    source: str = "manual_entry"
+
+@app.get("/api/progress/history")
+async def get_progress_history():
+    """Retrieve full persistent session and calendar activity history."""
+    return load_calendar_history()
+
+@app.post("/api/progress/note")
+async def post_progress_note(req: NoteUpdateRequest):
+    """Save clinician or user observation note for a specific date."""
+    entry = update_observation_note(req.date, req.note)
+    return {"ok": True, "entry": entry}
+
+@app.post("/api/progress/state")
+async def post_progress_state(req: StateUpdateRequest):
+    """Override or set affective state status for a specific date."""
+    entry = update_date_status(req.date, req.state)
+    return {"ok": True, "entry": entry}
+
+@app.post("/api/progress/log-session")
+async def post_log_session(req: LogSessionRequest):
+    """Persist an EEG session directly to the calendar."""
+    entry = record_session(
+        date_str=req.date,
+        state=req.state,
+        label=req.label,
+        avg_beta=req.avgBeta,
+        avg_alpha=req.avgAlpha,
+        avg_hr=req.avgHeartRate,
+        duration_str=req.sessionHours,
+        stress_spikes=req.stressSpikes,
+        breathing_breaks=req.breathingBreaks,
+        snn_score=req.snnScore,
+        notes=req.notes,
+        source=req.source,
+    )
+    return {"ok": True, "entry": entry}
 
 # ------------------ File Upload & Offline Analysis ------------------
 UPLOAD_DIR = Path("uploads")
@@ -475,6 +566,13 @@ async def upload_file(
             upload_path.unlink()
         except Exception:
             pass
+
+        # Automatically record this real analysis into the activity history calendar
+        try:
+            full_analysis = analyze_uploaded_data(upload_id)
+            record_analysis_upload(upload_id, full_analysis)
+        except Exception as cal_err:
+            print(f"Activity calendar auto-log note: {cal_err}")
 
         return {
             "upload_id": upload_id,

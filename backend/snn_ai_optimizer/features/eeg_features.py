@@ -177,6 +177,7 @@ def extract_windowed_band_powers(
     baseline_sec: float = 3.0,
     fs: int = SAMPLING_RATE,
     nperseg: int = 256,
+    subtract_baseline: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, int] | tuple[np.ndarray, int]:
     """
     Extract 128 Welch-PSD band-power features across temporal sliding windows.
@@ -187,6 +188,8 @@ def extract_windowed_band_powers(
     - Pre-trial 3.0 seconds discarded (stimulus presentation: 60 s = 7,680 samples)
     - Yields exactly 29 windows per trial: (7,680 - 512) // 256 + 1 = 29.
     - Expands 480 trials into 13,920 feature vectors of canonical 128 dimensions.
+    - If subtract_baseline=True, computes pre-trial baseline PSD and standardizes
+      features via log relative power: log((task_power + eps) / (baseline_power + eps)).
 
     Parameters
     ----------
@@ -204,6 +207,8 @@ def extract_windowed_band_powers(
         Sampling frequency in Hz.
     nperseg : int, default 256
         Welch segment length.
+    subtract_baseline : bool, default False
+        If True, normalize window features against the trial's 3-second baseline.
 
     Returns
     -------
@@ -260,9 +265,91 @@ def extract_windowed_band_powers(
 
     features = np.stack(band_list, axis=2).reshape(-1, N_FEATURES)
 
+    # Optional Pre-Trial Baseline Subtraction / Normalization
+    if subtract_baseline and baseline_samples >= 64:
+        base_raw = X[:, :, :baseline_samples].astype(np.float64)
+        b_freqs, b_psd = welch(base_raw, fs=fs, nperseg=min(nperseg, baseline_samples), axis=-1)
+        base_band_list = []
+        for band_name in BAND_ORDER:
+            low, high = BANDS[band_name]
+            mask = (b_freqs >= low) & (b_freqs < high)
+            b_bp = np.trapezoid(b_psd[..., mask], b_freqs[mask], axis=-1)
+            base_band_list.append(b_bp)
+        # shape: (N, 32, 4) -> flatten to (N, 128)
+        base_feats_per_trial = np.stack(base_band_list, axis=2).reshape(-1, N_FEATURES)
+        # Repeat across windows of the trial
+        base_repeated = np.repeat(base_feats_per_trial, n_win_per_trial, axis=0)
+        # Log relative power ratio (cancels out skull impedance and individual baseline levels)
+        features = np.log((features + 1e-6) / (base_repeated + 1e-6))
+
     if y is not None:
         y_rep = np.repeat(y, n_win_per_trial)
         return features, y_rep, n_win_per_trial
 
     return features, n_win_per_trial
+
+
+def compute_differential_entropy(
+    X: np.ndarray,
+    fs: int = SAMPLING_RATE,
+) -> np.ndarray:
+    """
+    Computes Differential Entropy (DE) across the 4 standard frequency bands.
+    For a bandpass-filtered signal assuming Gaussian distribution:
+        DE = 0.5 * ln(2 * pi * e * sigma^2)
+    """
+    from scipy.signal import butter, filtfilt
+
+    if X.ndim != 3:
+        raise ValueError(f"X must be 3D (N, channels, samples), got {X.shape}")
+
+    n_trials, n_channels, n_samples = X.shape
+    de_features = np.zeros((n_trials, N_FEATURES), dtype=np.float64)
+
+    nyq = fs / 2.0
+    for band_idx, band_name in enumerate(BAND_ORDER):
+        low, high = BANDS[band_name]
+        low_norm = max(0.01, min(0.95, low / nyq))
+        high_norm = max(low_norm + 0.02, min(0.99, high / nyq))
+        b, a = butter(4, [low_norm, high_norm], btype="band")
+
+        filtered = filtfilt(b, a, X, axis=-1)  # (N, channels, samples)
+        var = np.var(filtered, axis=-1, ddof=1)  # (N, channels)
+        de = 0.5 * np.log(2.0 * np.pi * np.e * np.maximum(var, 1e-8))
+
+        for ch in range(n_channels):
+            feat_col = ch * len(BAND_ORDER) + band_idx
+            de_features[:, feat_col] = de[:, ch]
+
+    return de_features
+
+
+def compute_frontal_alpha_asymmetry(
+    X: np.ndarray,
+    fs: int = SAMPLING_RATE,
+) -> np.ndarray:
+    """
+    Computes Frontal Alpha Asymmetry (FAA) between standard 10-20 right/left frontal pairs.
+    FAA = ln(Alpha_Right) - ln(Alpha_Left).
+    DEAP 10-20 Indices:
+        F3 = index 3, F4 = index 16
+        F7 = index 2, F8 = index 17
+        FC1 = index 4, FC2 = index 19
+    """
+    from scipy.signal import butter, filtfilt
+
+    nyq = fs / 2.0
+    b, a = butter(4, [8.0 / nyq, 13.0 / nyq], btype="band")
+    alpha_signal = filtfilt(b, a, X, axis=-1)
+    alpha_power = np.var(alpha_signal, axis=-1, ddof=1)  # (N, 32)
+
+    # Pairs: (Right, Left)
+    pairs = [(16, 3), (17, 2), (19, 4)]
+    faa_list = []
+    for r_idx, l_idx in pairs:
+        faa = np.log(np.maximum(alpha_power[:, r_idx], 1e-6)) - np.log(np.maximum(alpha_power[:, l_idx], 1e-6))
+        faa_list.append(faa)
+
+    return np.column_stack(faa_list)  # (N, 3)
+
 

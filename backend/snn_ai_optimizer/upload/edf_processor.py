@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+os.environ.setdefault("MNE_DONTWRITE_HOME", "true")
+
 try:
     import mne
     HAS_MNE = True

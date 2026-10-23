@@ -9,8 +9,7 @@ import FileUpload from '../components/FileUpload';
 import ChartTooltip from '../components/ui/ChartTooltip';
 import GlowButton from '../components/ui/GlowButton';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { API_BASE, safeFetchJson } from '../api';
 
 const COLORS = ['#16A34A', '#059669', '#15803D', '#22C55E', '#14532D'];
 
@@ -50,11 +49,9 @@ export default function AnalysisView() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/api/analysis/${id}`, {
+      const data = await safeFetchJson(`/api/analysis/${id}`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error('Failed to load analysis');
-      const data = await res.json();
       setAnalysisData(data);
     } catch (err) {
       setError(err.message || 'Failed to load analysis');

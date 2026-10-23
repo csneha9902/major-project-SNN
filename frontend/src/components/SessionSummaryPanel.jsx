@@ -1,8 +1,7 @@
 import { Brain, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import GlowButton from './ui/GlowButton';
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { safeFetchJson } from '../api';
 
 export default function SessionSummaryPanel({ isRunning }) {
   const [summary, setSummary] = useState('');
@@ -14,11 +13,7 @@ export default function SessionSummaryPanel({ isRunning }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/api/session-summary`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const data = await res.json();
+      const data = await safeFetchJson('/api/session-summary');
       if (data?.summary) {
         setSummary(data.summary);
         setExpanded(true);
@@ -26,7 +21,7 @@ export default function SessionSummaryPanel({ isRunning }) {
         setError('No summary data available. Start the simulation and let it run for a few seconds.');
       }
     } catch (err) {
-      console.error('Failed to fetch summary:', err);
+      console.error('Failed to fetch summary:', err.message);
       setError(err.message || 'Failed to fetch session summary.');
     } finally {
       setLoading(false);
