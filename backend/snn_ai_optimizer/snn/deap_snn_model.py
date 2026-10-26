@@ -254,11 +254,19 @@ class DEAPArousalSNN(nn.Module):
                 v3 = getattr(stages[2][1], "v", torch.zeros_like(h3))
 
                 s1_arr = s1[0].detach().cpu().numpy()
-                v1_arr = v1[0].detach().cpu().numpy()
+                v1_arr = v1[0].detach().cpu().numpy().copy()
                 s2_arr = s2[0].detach().cpu().numpy()
-                v2_arr = v2[0].detach().cpu().numpy()
+                v2_arr = v2[0].detach().cpu().numpy().copy()
                 s3_arr = s3[0].detach().cpu().numpy()
-                v3_arr = v3[0].detach().cpu().numpy()
+                v3_arr = v3[0].detach().cpu().numpy().copy()
+
+                # Action Potential Peak Depolarization:
+                # When a neuron fires (s == 1), SpikingJelly immediately resets v to 0.0.
+                # For realistic oscilloscope visualization, reflect the peak threshold potential (1.0 V)
+                # at the firing step, followed by refractory reset (0.0 V) at subsequent steps.
+                v1_arr[s1_arr == 1] = 1.0
+                v2_arr[s2_arr == 1] = 1.0
+                v3_arr[s3_arr == 1] = 1.0
 
                 s1_list.append(s1_arr[:n_sampled_neurons].astype(int).tolist())
                 v1_list.append(np.round(v1_arr[:n_sampled_neurons].astype(float), 4).tolist())

@@ -30,7 +30,11 @@ from snn_ai_optimizer.snn.deap_snn_train import poisson_encode_features
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_PATH = Path("results/snn/deap_snn.pth")
+# Absolute repository root to ensure checkpoints load regardless of invocation CWD
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULT_MODEL_PATH = _REPO_ROOT / "results" / "snn" / "deap_snn.pth"
+if not DEFAULT_MODEL_PATH.exists():
+    DEFAULT_MODEL_PATH = Path("results/snn/deap_snn.pth")
 DEFAULT_TIME_STEPS = 50
 
 # 32 Standard 10-20 EEG electrode labels matching canonical DEAP order
