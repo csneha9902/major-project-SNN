@@ -23,6 +23,7 @@ class ChatMessageRequest(BaseModel):
     message: str
     context: Optional[str] = "research"  # 'research' | 'dashboard'
     client_state: Optional[Dict[str, Any]] = None
+    history: Optional[List[Dict[str, Any]]] = None
 
 
 class AppointmentCreateRequest(BaseModel):
@@ -37,7 +38,7 @@ class AppointmentCreateRequest(BaseModel):
 async def send_chat_message(req: ChatMessageRequest):
     """
     Main conversational endpoint: processes queries across research and clinical domains,
-    scrubbing PII and enforcing medical guardrails.
+    scrubbing PII, resolving multi-turn context, and enforcing medical guardrails.
     """
     if not req.message or not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
@@ -46,6 +47,7 @@ async def send_chat_message(req: ChatMessageRequest):
         message=req.message,
         context=req.context or "research",
         client_state=req.client_state or {},
+        history=req.history or [],
     )
     return result
 

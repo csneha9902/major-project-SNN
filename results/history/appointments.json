@@ -128,5 +128,65 @@
     "reason": "EEG Cognitive Load & SNN Arousal Review",
     "status": "scheduled",
     "created_at": "2026-10-26T20:00:23.405745"
+  },
+  {
+    "id": "apt-0235cd5b",
+    "patient_name": "Active Learner / Subject",
+    "clinician": "Dr. Aditi Sharma (Neurophysiologist)",
+    "date": "2026-10-27",
+    "time": "2 PM",
+    "reason": "EEG Cognitive Load & SNN Arousal Review",
+    "status": "scheduled",
+    "created_at": "2026-10-26T20:35:59.072864"
+  },
+  {
+    "id": "apt-6910eb41",
+    "patient_name": "Test Subject",
+    "clinician": "Dr. Testing",
+    "date": "2026-11-12",
+    "time": "09:00 AM",
+    "reason": "Test SNN consultation",
+    "status": "cancelled",
+    "created_at": "2026-10-26T20:35:59.081951"
+  },
+  {
+    "id": "apt-d17cbfd0",
+    "patient_name": "Active Learner / Subject",
+    "clinician": "Dr. Aditi Sharma (Neurophysiologist)",
+    "date": "2026-10-27",
+    "time": "2 PM",
+    "reason": "EEG Cognitive Load & SNN Arousal Review",
+    "status": "scheduled",
+    "created_at": "2026-10-26T20:37:38.286962"
+  },
+  {
+    "id": "apt-da47242c",
+    "patient_name": "Test Subject",
+    "clinician": "Dr. Testing",
+    "date": "2026-11-12",
+    "time": "09:00 AM",
+    "reason": "Test SNN consultation",
+    "status": "cancelled",
+    "created_at": "2026-10-26T20:37:38.293813"
+  },
+  {
+    "id": "apt-c86f2a3c",
+    "patient_name": "Active Learner / Subject",
+    "clinician": "Dr. Aditi Sharma (Neurophysiologist)",
+    "date": "2026-10-27",
+    "time": "2 PM",
+    "reason": "EEG Cognitive Load & SNN Arousal Review",
+    "status": "scheduled",
+    "created_at": "2026-10-26T20:40:49.124667"
+  },
+  {
+    "id": "apt-97583cf6",
+    "patient_name": "Test Subject",
+    "clinician": "Dr. Testing",
+    "date": "2026-11-12",
+    "time": "09:00 AM",
+    "reason": "Test SNN consultation",
+    "status": "cancelled",
+    "created_at": "2026-10-26T20:40:49.129397"
   }
 ]

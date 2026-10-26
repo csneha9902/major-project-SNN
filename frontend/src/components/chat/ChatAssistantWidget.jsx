@@ -258,6 +258,12 @@ export default function ChatAssistantWidget() {
     setInputMessage('');
     setLoading(true);
 
+    // Prepare conversation history payload (last 8 turns)
+    const historyPayload = [...messages, userMsg].slice(-8).map(m => ({
+      sender: m.sender,
+      text: m.text,
+    }));
+
     try {
       const res = await safeFetchJson('/api/chat/message', {
         method: 'POST',
@@ -265,8 +271,11 @@ export default function ChatAssistantWidget() {
         body: JSON.stringify({
           message: query,
           context: domainContext,
+          history: historyPayload,
           client_state: {
             page: location.pathname,
+            activeLayer: inspectorLayer,
+            selectedNeuronIndex: Math.max(0, inspectorNeuronIndex - 1),
             timestamp: Date.now() / 1000,
           }
         })
@@ -356,17 +365,22 @@ export default function ChatAssistantWidget() {
   };
 
   const quickPrompts = domainContext === 'research' ? [
-    "Explain Neuron 8 in Hidden LIF 1",
+    "What is Neuron 4?",
+    "What does the green line represent?",
+    "What is the voltage at t = 23?",
+    "Is Neuron 4 firing at t = 23?",
+    "Why does the membrane potential decrease after a spike?",
+    "Which inputs contribute most to Neuron 4?",
+    "Explain the graph in simple language",
+    "What is the difference between membrane potential and firing threshold?",
     "Why is SNN AUROC 0.5532 higher than SVM?",
-    "Explain LIF equations & surrogate gradient",
-    "Inspect Neuron 15 in Hidden LIF 2",
-    "What is the Q-learning MDP Bellman equation?"
+    "Explain LIF equations & surrogate gradient"
   ] : [
     "Schedule an EEG review appointment for Friday at 10 AM",
     "Show my upcoming clinical appointments",
     "What do high beta oscillations signify in EEG?",
     "How does the SNN estimate affective arousal?",
-    "Explain Neuron 8 in Hidden LIF 1"
+    "Explain the graph in simple language"
   ];
 
   return (
