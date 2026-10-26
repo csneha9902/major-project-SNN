@@ -5,6 +5,7 @@ import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import ResearchDashboard from "./pages/ResearchDashboard";
 import AnalysisView from "./pages/AnalysisView";
+import ChatAssistantWidget from "./components/chat/ChatAssistantWidget";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/analysis/:uploadId?" element={<AnalysisView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ChatAssistantWidget />
     </BrowserRouter>
   </React.StrictMode>
 );

@@ -51,6 +51,13 @@ try:
 except Exception as e:
     print(f"Warning: SNN API module import failed: {e}")
 
+# Include Chatbot Assistant Router
+try:
+    from snn_ai_optimizer.chatbot.router import router as chatbot_router
+    app.include_router(chatbot_router)
+except Exception as e:
+    print(f"Warning: Chatbot API module import failed: {e}")
+
 # CORS configuration
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
