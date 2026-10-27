@@ -533,7 +533,7 @@ class SNNReasoningEngine:
             "1. **Poisson Rate Coding ($T = 50$ Time Steps):**\n"
             "$$S_i[t] \\sim \\text{Bernoulli}(x_i), \\quad P(S_i[t] = 1) = x_i \\in [0, 1]$$\n\n"
             "2. **Leaky Integrate-and-Fire Recurrence:**\n"
-            "$$V[t] = V[t-1] \\cdot \\left(1 - \\frac{1}{\\tau}\\right) + \\mathbf{W}\\mathbf{S}[t] + \\mathbf{b}$$\n"
+            "$$V[t] = V[t-1] \\cdot \\left(1 - \\frac{1}{\\tau}\\right) + \\frac{1}{\\tau}(\\mathbf{W}\\mathbf{S}[t] + \\mathbf{b})$$\n"
             "* Time constant $\\tau = 2.0$, threshold $V_{\\text{th}} = 1.0\\text{ V}$, reset $V_{\\text{reset}} = 0.0\\text{ V}$.\n\n"
             "3. **ArcTangent (ATan) Surrogate Gradient for BPTT:**\n"
             "$$\\frac{\\partial S}{\\partial V} \\approx \\frac{\\alpha}{\\pi (1 + \\alpha^2 (V - V_{\\text{th}})^2)}, \\quad \\alpha = 2.0$$\n"

@@ -1,0 +1,14 @@
+{
+  "n_samples": 100,
+  "n_seeds": 5,
+  "time_steps": 50,
+  "total_evaluations": 500,
+  "layer1_sparsity": 0.2858,
+  "layer2_sparsity": 0.5146,
+  "output_sparsity": 0.5206,
+  "overall_sparsity": 0.4073,
+  "overall_sparsity_pct": "40.73%",
+  "mean_firing_rate_pct": "59.27%",
+  "quiescent_percentage": "~40.7%",
+  "methodology": "Evaluated over 500 stochastic Poisson forward passes using trained DEAPArousalSNN weights."
+}

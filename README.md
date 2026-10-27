@@ -114,7 +114,7 @@ python3 scripts/verify_research_integrity.py
 
 ### 4. Run End-to-End Pipeline
 ```bash
-python3 scripts/run_research_pipeline.py --windowed --epochs 30 --seed 42
+python3 scripts/run_research_pipeline.py --windowed --epochs 15 --seed 42
 ```
 
 ### 5. Launch Servers Separately
